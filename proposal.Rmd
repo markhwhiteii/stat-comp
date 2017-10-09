@@ -1,0 +1,7 @@
+---
+title: "Proposal"
+author: "Mark H. White II | markhwhiteii@gmail.com"
+output: pdf_document
+---
+
+
