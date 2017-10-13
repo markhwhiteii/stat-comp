@@ -21,7 +21,7 @@ get_results <- function(predicted, actual) {
 pred <- round(rnorm(1, 40, 10), 0)
 prop_noise <- abs(rnorm(1, .17, .033))
 tot_noise <- round(pred * prop_noise, 0)
-n <- round(rnorm(1, 300000, 80000), 0)
+n <- round(rnorm(1, 300000, 96000), 0)
 noiseVars <- round(tot_noise / 2, 0)
 corrVars <- tot_noise - noiseVars
 linearVars <- pred - tot_noise
@@ -114,7 +114,7 @@ for (i in seq_along(training)) {
     str_split(names(training[i]), "_", simplify = TRUE)[1,2]
   )
   # create model
-  assign(name, randomForest(training[[i]]$X, training[[i]]$Y))
+  assign(name, randomForest(training[[i]]$X, training[[i]]$Y, ntree = 100))
   # predict
   assign(name, unname(predict(get(name), test_X)))
   # get results
