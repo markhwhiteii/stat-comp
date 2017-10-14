@@ -1,3 +1,4 @@
 lit
 .DS_Store
 *.model
+.Rhistory
