@@ -5,6 +5,9 @@ purrr::walk(
   library, character.only = TRUE
 )
 
+## load in my own simulation function, based on caret
+source("R/two_class_sim.R")
+
 ## create function for accuracy stats
 get_results <- function(predicted, actual) {
   conf_matrix <- as.data.frame(table(predicted, actual))
@@ -19,23 +22,24 @@ get_results <- function(predicted, actual) {
 set.seed(1839)
 
 for (iter in 1:100) {
-  ## set parameters
-  pred <- round(rnorm(1, 40, 10), 0)
-  prop_noise <- abs(rnorm(1, .17, .033))
-  tot_noise <- round(pred * prop_noise, 0)
-  n <- round(rnorm(1, 30000, 9000), 0)
-  noiseVars <- round(tot_noise / 2, 0)
+  ## setting parameters
+  pred <- round(rnorm(1, 50, 7))
+  prop_noise <- abs(rnorm(1, .15, .033))
+  tot_noise <- round(pred * prop_noise)
+  n <- round(rnorm(1, 40000, 3333))
+  noiseVars <- round(tot_noise / 2)
   corrVars <- tot_noise - noiseVars
   linearVars <- pred - tot_noise
-  intercept <- round(rnorm(1, -30, 1.5), 0)
+  minoritySize <- rnorm(1, .02, .003)
   
-  ## simulate data
-  dat <- twoClassSim(
+  ## generating data
+  dat <- two_class_sim(
     n = n,
+    intercept = 0,
+    linearVars = linearVars,
     noiseVars = noiseVars,
     corrVars = corrVars,
-    linearVars = linearVars,
-    intercept = intercept
+    minoritySize = minoritySize
   )
   
   ## save minority size
