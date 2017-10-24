@@ -13,33 +13,32 @@ get_results <- function(predicted, actual) {
   conf_matrix <- as.data.frame(table(predicted, actual))
   prec <- conf_matrix[4, 3] / (conf_matrix[4, 3] + conf_matrix[2, 3])
   rec <- conf_matrix[4, 3] / (conf_matrix[4, 3] + conf_matrix[3, 3])
-  spec <- conf_matrix[1, 3] / (conf_matrix[1, 3] + conf_matrix[2, 3])
   f1 <- 2 * ((prec * rec) / (prec + rec))
-  auroc <- (rec + spec) / 2
-  return(list(prec, rec, f1, auroc))
+  return(list(prec, rec, f1))
 }
 
+## set parameters
 set.seed(1839)
+n_iter <- 100
+pred <- round(rnorm(n_iter, 50, 7))
+prop_noise <- abs(rnorm(n_iter, .15, .033))
+tot_noise <- round(pred * prop_noise)
+n <- round(rnorm(n_iter, 40000, 3333))
+noiseVars <- round(tot_noise / 2)
+corrVars <- tot_noise - noiseVars
+linearVars <- pred - tot_noise
+minoritySize <- rnorm(n_iter, .02, .003)
 
-for (iter in 1:100) {
-  ## setting parameters
-  pred <- round(rnorm(1, 50, 7))
-  prop_noise <- abs(rnorm(1, .15, .033))
-  tot_noise <- round(pred * prop_noise)
-  n <- round(rnorm(1, 40000, 3333))
-  noiseVars <- round(tot_noise / 2)
-  corrVars <- tot_noise - noiseVars
-  linearVars <- pred - tot_noise
-  minoritySize <- rnorm(1, .02, .003)
-  
+for (iter in 1:n_iter) {
   ## generating data
+  set.seed(n_iter)
   dat <- two_class_sim(
-    n = n,
+    n = n[n_iter],
     intercept = 0,
-    linearVars = linearVars,
-    noiseVars = noiseVars,
-    corrVars = corrVars,
-    minoritySize = minoritySize
+    linearVars = linearVars[n_iter],
+    noiseVars = noiseVars[n_iter],
+    corrVars = corrVars[n_iter],
+    minoritySize = minoritySize[n_iter]
   )
   
   ## save minority size
@@ -72,7 +71,7 @@ for (iter in 1:100) {
   
   ## train and test models
   results_df <- data.frame(
-    v1 = NA, precision = NA, recall = NA, f1 = NA, auroc = NA
+    v1 = NA, precision = NA, recall = NA, f1 = NA
   )
   
   # adaboost
@@ -80,13 +79,12 @@ for (iter in 1:100) {
     # set name
     name <- paste0(
       "adaboost_", 
-      str_split(names(training[i]), "_", simplify = TRUE)[1,2]
+      str_split(names(training[i]), "_", simplify = TRUE)[1, 2]
     )
     # create model
     assign(name, adaboost(
-      Class ~ ., mutate(training[[i]]$X, Class = training[[i]]$Y), 10
-    )
-    )
+      Class ~ ., mutate(training[[i]]$X, Class = training[[i]]$Y), nIter = 10
+    ))
     # predict
     assign(name, predict(get(name), test_X))
     # get results
@@ -98,14 +96,13 @@ for (iter in 1:100) {
     # set name
     name <- paste0(
       "xgboost_", 
-      str_split(names(training[i]), "_", simplify = TRUE)[1,2]
+      str_split(names(training[i]), "_", simplify = TRUE)[1, 2]
     )
     # create model
     assign(name, xgboost(
       data.matrix(training[[i]]$X), as.numeric(as.character(training[[i]]$Y)),
       nrounds = 10, verbose = 0, objective = "binary:logistic"
-    )
-    )
+    ))
     # predict
     assign(name, as.numeric(predict(get(name), data.matrix(test_X))) > .5)
     # get results
@@ -117,7 +114,7 @@ for (iter in 1:100) {
     # set name
     name <- paste0(
       "randomforest_", 
-      str_split(names(training[i]), "_", simplify = TRUE)[1,2]
+      str_split(names(training[i]), "_", simplify = TRUE)[1, 2]
     )
     # create model
     assign(name, randomForest(training[[i]]$X, training[[i]]$Y, ntree = 100))
@@ -132,7 +129,7 @@ for (iter in 1:100) {
     # set name
     name <- paste0(
       "c50_",
-      str_split(names(training[i]), "_", simplify = TRUE)[1,2]
+      str_split(names(training[i]), "_", simplify = TRUE)[1, 2]
     )
     # create model
     assign(name, C5.0(training[[i]]$X, training[[i]]$Y))
@@ -150,10 +147,10 @@ for (iter in 1:100) {
       filter(!is.na(v1)) %>% 
       separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
       mutate(
-        n = n,
-        noise_vars = noiseVars,
-        corr_vars = corrVars,
-        linear_vars = linearVars,
+        n = n[n_iter],
+        noise_vars = noiseVars[n_iter],
+        corr_vars = corrVars[n_iter],
+        linear_vars = linearVars[n_iter],
         minority_size = minority_size,
         iter_number = iter
       ) %>% 
@@ -164,10 +161,10 @@ for (iter in 1:100) {
       filter(!is.na(v1)) %>% 
       separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
       mutate(
-        n = n,
-        noise_vars = noiseVars,
-        corr_vars = corrVars,
-        linear_vars = linearVars,
+        n = n[n_iter],
+        noise_vars = noiseVars[n_iter],
+        corr_vars = corrVars[n_iter],
+        linear_vars = linearVars[n_iter],
         minority_size = minority_size,
         iter_number = iter
       ) %>% 
