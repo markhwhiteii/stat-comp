@@ -11,10 +11,10 @@ source("R/two_class_sim.R")
 ## create function for accuracy stats
 get_results <- function(predicted, actual) {
   conf_matrix <- as.data.frame(table(predicted, actual))
-  tp <- conf_matrix[4, 3]
-  fp <- conf_matrix[2, 3]
-  tn <- conf_matrix[1, 3]
-  fn <- conf_matrix[3, 3]
+  tp <- conf_matrix[4, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
+  fp <- conf_matrix[2, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
+  tn <- conf_matrix[1, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
+  fn <- conf_matrix[3, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
   prec <- tp / (tp + fp)
   rec <- tp / (tp + fn)
   f1 <- 2 * ((prec * rec) / (prec + rec))
@@ -144,19 +144,39 @@ for (iter in 1:100) {
     # get results
     results_df <- rbind(results_df, c(name, get_results(get(name), test_y)))
   }
+  
   rm(test_y)
+  
+  ## tidying results, saving externally to not keep in working memory
+  if (iter == 1) {
+    results_df %>% 
+      filter(!is.na(v1)) %>% 
+      separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
+      mutate(
+        n = n[iter],
+        noise_vars = noiseVars[iter],
+        corr_vars = corrVars[iter],
+        linear_vars = linearVars[iter],
+        minority_size = minority_size,
+        iter_number = iter
+      ) %>% 
+      # first iteration creates the file
+      write_csv("data/results_df.csv")
+  } else {
+    results_df %>% 
+      filter(!is.na(v1)) %>% 
+      separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
+      mutate(
+        n = n[iter],
+        noise_vars = noiseVars[iter],
+        corr_vars = corrVars[iter],
+        linear_vars = linearVars[iter],
+        minority_size = minority_size,
+        iter_number = iter
+      ) %>% 
+      # all other iterations append to it
+      write_csv("data/results_df.csv", append = TRUE)
+  }
+  
   print(iter)
 }
-
-results_df %>% 
-  filter(!is.na(v1)) %>% 
-  separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
-  mutate(
-    n = n[iter],
-    noise_vars = noiseVars[iter],
-    corr_vars = corrVars[iter],
-    linear_vars = linearVars[iter],
-    minority_size = minority_size,
-    iter_number = iter
-  ) %>% 
-  write_csv("data/results_df.csv")
