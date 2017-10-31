@@ -11,15 +11,19 @@ source("R/two_class_sim.R")
 ## create function for accuracy stats
 get_results <- function(predicted, actual) {
   conf_matrix <- as.data.frame(table(predicted, actual))
-  prec <- conf_matrix[4, 3] / (conf_matrix[4, 3] + conf_matrix[2, 3])
-  rec <- conf_matrix[4, 3] / (conf_matrix[4, 3] + conf_matrix[3, 3])
+  tp <- conf_matrix[4, 3]
+  fp <- conf_matrix[2, 3]
+  tn <- conf_matrix[1, 3]
+  fn <- conf_matrix[3, 3]
+  prec <- tp / (tp + fp)
+  rec <- tp / (tp + fn)
   f1 <- 2 * ((prec * rec) / (prec + rec))
-  return(list(prec, rec, f1))
+  return(list(tp, fp, tn, fn, prec, rec, f1))
 }
 
 ## set parameters
 set.seed(1839)
-n_iter <- 100
+n_iter <- 1000
 pred <- round(rnorm(n_iter, 50, 7))
 prop_noise <- abs(rnorm(n_iter, .15, .033))
 tot_noise <- round(pred * prop_noise)
@@ -28,17 +32,18 @@ noiseVars <- round(tot_noise / 2)
 corrVars <- tot_noise - noiseVars
 linearVars <- pred - tot_noise
 minoritySize <- rnorm(n_iter, .02, .003)
+seeds <- as.integer(runif(n_iter, 1, 100000000))
 
-for (iter in 1:n_iter) {
+for (iter in 1:100) {
   ## generating data
-  set.seed(n_iter)
+  set.seed(seeds[iter])
   dat <- two_class_sim(
-    n = n[n_iter],
+    n = n[iter],
     intercept = 0,
-    linearVars = linearVars[n_iter],
-    noiseVars = noiseVars[n_iter],
-    corrVars = corrVars[n_iter],
-    minoritySize = minoritySize[n_iter]
+    linearVars = linearVars[iter],
+    noiseVars = noiseVars[iter],
+    corrVars = corrVars[iter],
+    minoritySize = minoritySize[iter]
   )
   
   ## save minority size
@@ -71,7 +76,8 @@ for (iter in 1:n_iter) {
   
   ## train and test models
   results_df <- data.frame(
-    v1 = NA, precision = NA, recall = NA, f1 = NA
+    v1 = NA, tp = NA, fp = NA, tn = NA, fn = NA,
+    precision = NA, recall = NA, f1 = NA
   )
   
   # adaboost
@@ -138,38 +144,19 @@ for (iter in 1:n_iter) {
     # get results
     results_df <- rbind(results_df, c(name, get_results(get(name), test_y)))
   }
-  
   rm(test_y)
-  
-  ## tidying results, saving externally to not keep in working memory
-  if (iter == 1) {
-    results_df %>% 
-      filter(!is.na(v1)) %>% 
-      separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
-      mutate(
-        n = n[n_iter],
-        noise_vars = noiseVars[n_iter],
-        corr_vars = corrVars[n_iter],
-        linear_vars = linearVars[n_iter],
-        minority_size = minority_size,
-        iter_number = iter
-      ) %>% 
-      # first iteration creates the file
-      write_csv("data/results_df.csv")
-  } else {
-    results_df %>% 
-      filter(!is.na(v1)) %>% 
-      separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
-      mutate(
-        n = n[n_iter],
-        noise_vars = noiseVars[n_iter],
-        corr_vars = corrVars[n_iter],
-        linear_vars = linearVars[n_iter],
-        minority_size = minority_size,
-        iter_number = iter
-      ) %>% 
-      # all other iterations append to it
-      write_csv("data/results_df.csv", append = TRUE)
-  }
-  print(i)
+  print(iter)
 }
+
+results_df %>% 
+  filter(!is.na(v1)) %>% 
+  separate(v1, c("algorithm", "sampling"), sep = "_") %>% 
+  mutate(
+    n = n[iter],
+    noise_vars = noiseVars[iter],
+    corr_vars = corrVars[iter],
+    linear_vars = linearVars[iter],
+    minority_size = minority_size,
+    iter_number = iter
+  ) %>% 
+  write_csv("data/results_df.csv")
