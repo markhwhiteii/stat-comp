@@ -11,10 +11,14 @@ source("R/two_class_sim.R")
 ## create function for accuracy stats
 get_results <- function(predicted, actual) {
   conf_matrix <- as.data.frame(table(predicted, actual))
-  tp <- conf_matrix[4, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
-  fp <- conf_matrix[2, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
-  tn <- conf_matrix[1, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
-  fn <- conf_matrix[3, 3] # IMPROPER WHEN ALL ONE CLASS PREDICTED
+  tp <- conf_matrix[(conf_matrix[1] == 1) & (conf_matrix[2] == 1), 3] %>% 
+    ifelse(length(.) == 0, 0, .)
+  fp <- conf_matrix[(conf_matrix[1] == 1) & (conf_matrix[2] == 0), 3] %>% 
+    ifelse(length(.) == 0, 0, .)
+  tn <- conf_matrix[(conf_matrix[1] == 0) & (conf_matrix[2] == 0), 3] %>% 
+    ifelse(length(.) == 0, 0, .)
+  fn <- conf_matrix[(conf_matrix[1] == 0) & (conf_matrix[2] == 1), 3] %>% 
+    ifelse(length(.) == 0, 0, .)
   prec <- tp / (tp + fp)
   rec <- tp / (tp + fn)
   f1 <- 2 * ((prec * rec) / (prec + rec))
@@ -34,7 +38,7 @@ linearVars <- pred - tot_noise
 minoritySize <- rnorm(n_iter, .02, .003)
 seeds <- as.integer(runif(n_iter, 1, 100000000))
 
-for (iter in 1:100) {
+for (iter in 1:2) {
   ## generating data
   set.seed(seeds[iter])
   dat <- two_class_sim(
