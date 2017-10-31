@@ -31,11 +31,11 @@ n_iter <- 1000
 pred <- round(rnorm(n_iter, 50, 7))
 prop_noise <- abs(rnorm(n_iter, .15, .033))
 tot_noise <- round(pred * prop_noise)
-n <- round(rnorm(n_iter, 40000, 3333))
+n <- round(rnorm(n_iter, 40000, 5000))
 noiseVars <- round(tot_noise / 2)
 corrVars <- tot_noise - noiseVars
 linearVars <- pred - tot_noise
-minoritySize <- rnorm(n_iter, .02, .003)
+minoritySize <- rnorm(n_iter, .03, .007)
 seeds <- as.integer(runif(n_iter, 1, 100000000))
 
 for (iter in 1:2) {
@@ -114,7 +114,7 @@ for (iter in 1:2) {
       nrounds = 10, verbose = 0, objective = "binary:logistic"
     ))
     # predict
-    assign(name, as.numeric(predict(get(name), data.matrix(test_X))) > .5)
+    assign(name, as.numeric(predict(get(name), data.matrix(test_X)) > .5))
     # get results
     results_df <- rbind(results_df, c(name, get_results(get(name), test_y)))
   }
