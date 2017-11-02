@@ -1,7 +1,5 @@
 library(tidyverse)
-
-setwd("..") # set one level up
-dat <- read_csv("data/results_df.csv") %>% 
+dat <- read_csv("../data/results_df.csv") %>% 
   mutate(
     iter_number = as.factor(iter_number),
     algorithm   = factor(
@@ -11,10 +9,10 @@ dat <- read_csv("data/results_df.csv") %>%
   )
 
 glimpse(dat)
-
 summary(dat)
 
-dat[,c("f1", "n", "noise_vars", "corr_vars", "linear_vars", "minority_size")] %>% 
+dat[,c("precision", "recall", "f1", "n", "noise_vars", 
+       "corr_vars", "linear_vars", "minority_size")] %>% 
   cor(use = "pairwise.complete.obs") %>% 
   round(3)
 
