@@ -18,6 +18,7 @@ minoritySize <- rnorm(n_iter, .03, .007)
 seeds        <- as.integer(runif(n_iter, 1, 100000000))
 
 results <- vector("list", 1600)
+counter <- 0
 for (iter in 1:100) {
   # generate data
   set.seed(seeds[iter])
@@ -34,7 +35,6 @@ for (iter in 1:100) {
   testing       <- make_test(dat, cases)
   minority_size <- prop.table(table(dat$Class))[[2]]
   
-  counter <- 0
   # adaboost
   for (i in seq_along(training)) {
     name <- paste0(
