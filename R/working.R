@@ -54,7 +54,7 @@ linearVars <- pred - tot_noise
 minoritySize <- rnorm(n_iter, .03, .007)
 seeds <- as.integer(runif(n_iter, 1, 100000000))
 
-results <- list()
+results <- vector("list", 1600)
 for (iter in 1:100) {
   # generate data
   set.seed(seeds[iter])
@@ -71,6 +71,7 @@ for (iter in 1:100) {
   testing <- make_test(dat, cases)
   minority_size <- prop.table(table(dat$Class))[[2]]
   
+  counter <- 0
   # adaboost
   for (i in seq_along(training)) {
     name <- paste0(
@@ -81,7 +82,8 @@ for (iter in 1:100) {
       Class ~ ., mutate(training[[i]]$X, Class = training[[i]]$Y), nIter = 10
     ))
     assign(name, predict(get(name), testing$X))
-    results[[length(results) + 1]] <- as.list(c(
+    counter <- counter + 1
+    results[[counter]] <- as.list(c(
       name, get_results(get(name)$class, testing$y), n[iter], noiseVars[iter], 
       corrVars[iter], linearVars[iter], minority_size, iter
     ))
@@ -98,7 +100,8 @@ for (iter in 1:100) {
       nrounds = 10, verbose = 0, objective = "binary:logistic"
     ))
     assign(name, as.numeric(predict(get(name), data.matrix(testing$X)) > .5))
-    results[[length(results) + 1]] <- as.list(c(
+    counter <- counter + 1
+    results[[counter]] <- as.list(c(
       name, get_results(get(name), testing$y), n[iter], noiseVars[iter], 
       corrVars[iter], linearVars[iter], minority_size, iter
     ))
@@ -112,7 +115,8 @@ for (iter in 1:100) {
     )
     assign(name, randomForest(training[[i]]$X, training[[i]]$Y, ntree = 100))
     assign(name, unname(predict(get(name), testing$X)))
-    results[[length(results) + 1]] <- as.list(c(
+    counter <- counter + 1
+    results[[counter]] <- as.list(c(
       name, get_results(get(name), testing$y), n[iter], noiseVars[iter], 
       corrVars[iter], linearVars[iter], minority_size, iter
     ))
@@ -126,7 +130,8 @@ for (iter in 1:100) {
     )
     assign(name, C5.0(training[[i]]$X, training[[i]]$Y))
     assign(name, predict(get(name), testing$X))
-    results[[length(results) + 1]] <- as.list(c(
+    counter <- counter + 1
+    results[[counter]] <- as.list(c(
       name, get_results(get(name), testing$y), n[iter], noiseVars[iter], 
       corrVars[iter], linearVars[iter], minority_size, iter
     ))
