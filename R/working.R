@@ -102,8 +102,8 @@ for (iter in 1:100) {
   print(iter)
 }
 
-results <- as.data.frame(do.call(rbind, results))
-colnames(results) <- c("v1", "tp", "fp", "tn", "fn", "prec", "rec", "f1",
+results_df <- as.data.frame(do.call(rbind, lapply(results, unlist)))
+colnames(results_df) <- c("v1", "tp", "fp", "tn", "fn", "prec", "rec", "f1",
                        "n", "noise_vars", "cor_vars", "linear_vars",
                        "minority_size", "iter")
-write_csv(results, "../data/results_df.csv")
+write_csv(results_df, "../data/results_df.csv")
