@@ -1,18 +1,48 @@
 library(tidyverse)
 dat <- read_csv("../data/results_df.csv") %>% 
+  separate(v1, c("algorithm", "sampling"), "_", FALSE) %>% 
   mutate(
-    iter_number = as.factor(iter_number),
-    algorithm   = factor(
+    v1 = as.factor(v1),
+    algorithm = factor(
       algorithm, levels = c("c50", "adaboost", "randomforest", "xgboost")
-    ),
-    sampling    = as.factor(sampling)
+      ),
+    sampling = as.factor(sampling),
+    iter = as.factor(iter)
   )
+names(dat)[1] <- "model"
 
 glimpse(dat)
 summary(dat)
 
-dat[,c("precision", "recall", "f1", "n", "noise_vars", 
-       "corr_vars", "linear_vars", "minority_size")] %>% 
+## proportion zeros
+prop_zeros <- dat %>% 
+  mutate(total_pos = fp + fp) %>% 
+  group_by(model) %>% 
+  summarise_at("total_pos", funs(mean(. == 0))) %>% 
+  arrange(desc(total_pos))
+
+good_models <- prop_zeros %>% 
+  filter(total_pos == 0) %>% 
+  pull(model) %>% 
+  as.character()
+
+## correlation between precision and recall
+prec_rec_cors <- sapply(good_models, function(x) {
+  temp <- dat[dat$model == x, ]
+  cor(temp$prec, temp$rec)
+})
+
+tibble(good_models, prec_rec_cors) %>% 
+  arrange(desc(prec_rec_cors))
+
+ggplot(dat[dat$model %in% good_models, ], 
+       aes(x = prec, y = rec, colour = model)) +
+  geom_jitter() +
+  geom_smooth(method = "lm", se = FALSE)
+ 
+## bivariate correlations
+dat[unique(dat$iter) ,c("prec", "rec", "f1", "n", "noise_vars", 
+       "cor_vars", "linear_vars", "minority_size")] %>% 
   cor(use = "pairwise.complete.obs") %>% 
   round(3)
 
@@ -26,17 +56,45 @@ summary(model_sampling)
 
 ## both together
 dat_summary <- dat %>% 
+  filter(model %in% good_models) %>% 
   group_by(algorithm, sampling) %>% 
-  summarise_at(vars(precision, recall, f1), funs(mean(., na.rm = TRUE)))
+  summarise_at(vars(prec, rec, f1), funs(mean(., na.rm = TRUE)))
 
-plot_precision <- ggplot(dat_summary, aes(x = algorithm, y = precision, fill = sampling)) +
+plot_precision <- ggplot(dat_summary, 
+                         aes(x = algorithm, y = prec, fill = sampling)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_light()
 
-plot_recall <- ggplot(dat_summary, aes(x = algorithm, y = recall, fill = sampling)) +
+plot_recall <- ggplot(dat_summary, 
+                      aes(x = algorithm, y = rec, fill = sampling)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_light()
 
 plot_f1 <- ggplot(dat_summary, aes(x = algorithm, y = f1, fill = sampling)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_light()
+
+## trends with each model
+plot_n_f1 <- ggplot(dat[dat$model %in% good_models, ], 
+                    aes(x = n, y = f1, colour = model)) +
+  geom_jitter() + 
+  geom_smooth(method = "loess", se = FALSE)
+
+plot_minoritysize_f1 <- ggplot(dat[dat$model %in% good_models, ], 
+                    aes(x = minority_size, y = f1, colour = model)) +
+  geom_jitter() + 
+  geom_smooth(method = "loess", se = FALSE)
+
+## also want to look at the variance of each score
+rec_sd <- with(dat[dat$model %in% good_models, ], tapply(rec, model, sd))
+prec_sd <- with(dat[dat$model %in% good_models, ], tapply(prec, model, sd))
+f1_sd <- with(dat[dat$model %in% good_models, ], tapply(f1, model, sd))
+
+score_sds <- data.frame(rec_sd, prec_sd, f1_sd) %>% 
+  lapply(round, 3) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(rowname %in% good_models)
+
+
+
