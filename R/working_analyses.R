@@ -1,5 +1,8 @@
 library(tidyverse)
+library(ggridges)
 dat <- read_csv("../data/results_df.csv") %>% 
+  bind_rows(read_csv("../data/results_df_101-150.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_151-200.csv")) %>% 
   separate(v1, c("algorithm", "sampling"), "_", FALSE) %>% 
   mutate(
     v1 = as.factor(v1),
@@ -74,27 +77,60 @@ plot_f1 <- ggplot(dat_summary, aes(x = algorithm, y = f1, fill = sampling)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_light()
 
+# change to ridge plot, because incorporates variance
+good_dat <- dat[dat$model %in% good_models, ]
+
+# f1
+ranked_names <- names(sort(tapply(
+  good_dat$f1, droplevels(good_dat$model), mean, na.rm = TRUE), ## WHY SOME NA?
+  decreasing = TRUE
+))
+good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
+ridge_f1 <- ggplot(good_dat, aes(y = model, x = f1)) +
+  geom_density_ridges(alpha = .7) +
+  theme_light() +
+  labs(x = "F1 Score", y = "Model")
+
+# precision
+ranked_names <- names(sort(tapply(
+  good_dat$prec, droplevels(good_dat$model), mean, na.rm = TRUE), ## WHY SOME NA?
+  decreasing = TRUE
+))
+good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
+ridge_prec <- ggplot(good_dat, aes(y = model, x = prec)) +
+  geom_density_ridges(alpha = .7) +
+  theme_light() +
+  labs(x = "Precision", y = "Model")
+
+# recall
+ranked_names <- names(sort(tapply(
+  good_dat$rec, droplevels(good_dat$model), mean, na.rm = TRUE), ## WHY SOME NA?
+  decreasing = TRUE
+))
+good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
+ridge_rec <- ggplot(good_dat, aes(y = model, x = rec)) +
+  geom_density_ridges(alpha = .7) +
+  theme_light() +
+  labs(x = "Recall", y = "Model")
+
 ## trends with each model
 plot_n_f1 <- ggplot(dat[dat$model %in% good_models, ], 
                     aes(x = n, y = f1, colour = model)) +
   geom_jitter() + 
-  geom_smooth(method = "loess", se = FALSE)
+  geom_smooth(method = "lm", se = FALSE)
 
 plot_minoritysize_f1 <- ggplot(dat[dat$model %in% good_models, ], 
                     aes(x = minority_size, y = f1, colour = model)) +
   geom_jitter() + 
-  geom_smooth(method = "loess", se = FALSE)
+  geom_smooth(method = "lm", se = FALSE)
 
 ## also want to look at the variance of each score
-rec_sd <- with(dat[dat$model %in% good_models, ], tapply(rec, model, sd))
-prec_sd <- with(dat[dat$model %in% good_models, ], tapply(prec, model, sd))
-f1_sd <- with(dat[dat$model %in% good_models, ], tapply(f1, model, sd))
+rec_sd <- with(dat[dat$model %in% good_models, ], tapply(rec, model, sd, na.rm = TRUE))
+prec_sd <- with(dat[dat$model %in% good_models, ], tapply(prec, model, sd, na.rm = TRUE))
+f1_sd <- with(dat[dat$model %in% good_models, ], tapply(f1, model, sd, na.rm = TRUE))
 
 score_sds <- data.frame(rec_sd, prec_sd, f1_sd) %>% 
   lapply(round, 3) %>% 
   as.data.frame() %>% 
-  rownames_to_column() %>% 
-  filter(rowname %in% good_models)
-
-
-
+  rownames_to_column("model") %>% 
+  filter(model %in% good_models)
