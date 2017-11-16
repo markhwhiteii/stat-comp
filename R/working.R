@@ -17,9 +17,9 @@ linearVars   <- pred - tot_noise
 minoritySize <- rnorm(n_iter, .03, .007)
 seeds        <- as.integer(runif(n_iter, 1, 100000000))
 
-results <- vector("list", 800)
+results <- vector("list", 1600)
 counter <- 0
-for (iter in 151:200) {
+for (iter in 351:450) {
   # generate data
   set.seed(seeds[iter])
   dat <- two_class_sim(
@@ -106,4 +106,4 @@ results_df <- as.data.frame(do.call(rbind, lapply(results, unlist)))
 colnames(results_df) <- c("v1", "tp", "fp", "tn", "fn", "prec", "rec", "f1",
                           "n", "noise_vars", "cor_vars", "linear_vars",
                           "minority_size", "iter")
-write_csv(results_df, "../data/results_df_151-200.csv")
+write_csv(results_df, "../data/results_df_351-450.csv")
