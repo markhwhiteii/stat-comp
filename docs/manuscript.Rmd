@@ -1,0 +1,7 @@
+---
+title: "A Monte Carlo study on methods for handling class imbalance"
+author: "Mark H. White II | markhwhiteii@gmail.com"
+output: pdf_document
+---
+
+
