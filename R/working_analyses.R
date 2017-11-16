@@ -3,6 +3,9 @@ library(ggridges)
 dat <- read_csv("../data/results_df.csv") %>% 
   bind_rows(read_csv("../data/results_df_101-150.csv")) %>% 
   bind_rows(read_csv("../data/results_df_151-200.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_201-300.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_301-350.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_351-450.csv")) %>% 
   separate(v1, c("algorithm", "sampling"), "_", FALSE) %>% 
   mutate(
     v1 = as.factor(v1),
@@ -80,17 +83,6 @@ plot_f1 <- ggplot(dat_summary, aes(x = algorithm, y = f1, fill = sampling)) +
 # change to ridge plot, because incorporates variance
 good_dat <- dat[dat$model %in% good_models, ]
 
-# f1
-ranked_names <- names(sort(tapply(
-  good_dat$f1, droplevels(good_dat$model), mean, na.rm = TRUE), ## WHY SOME NA?
-  decreasing = TRUE
-))
-good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
-ridge_f1 <- ggplot(good_dat, aes(y = model, x = f1)) +
-  geom_density_ridges(alpha = .7) +
-  theme_light() +
-  labs(x = "F1 Score", y = "Model")
-
 # precision
 ranked_names <- names(sort(tapply(
   good_dat$prec, droplevels(good_dat$model), mean, na.rm = TRUE), ## WHY SOME NA?
@@ -112,6 +104,29 @@ ridge_rec <- ggplot(good_dat, aes(y = model, x = rec)) +
   geom_density_ridges(alpha = .7) +
   theme_light() +
   labs(x = "Recall", y = "Model")
+
+# f1
+ranked_names <- names(sort(tapply(
+  good_dat$f1, droplevels(good_dat$model), mean, na.rm = TRUE),
+  decreasing = TRUE
+))
+good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
+ridge_f1 <- ggplot(good_dat, aes(y = model, x = f1)) +
+  geom_density_ridges(alpha = .7) +
+  theme_light() +
+  labs(x = "F1 Score", y = "Model")
+
+## all in one plot
+dat_long_ridge <- good_dat %>% 
+  transmute(model, f1, prec, rec) %>% 
+  gather(metric, value, -model)
+
+ridge_all <- ggplot(dat_long_ridge, aes(y = model, x = value)) +
+  geom_density_ridges(alpha = .7) +
+  facet_wrap( ~ metric, scales = "free_x") +
+  theme_light() +
+  labs(x = NULL, y = "Model") +
+  theme(text = element_text(size = 14))
 
 ## trends with each model
 plot_n_f1 <- ggplot(dat[dat$model %in% good_models, ], 
