@@ -1,11 +1,14 @@
 library(tidyverse)
 library(ggridges)
+library(lme4)
+library(lmerTest)
 dat <- read_csv("../data/results_df.csv") %>% 
   bind_rows(read_csv("../data/results_df_101-150.csv")) %>% 
   bind_rows(read_csv("../data/results_df_151-200.csv")) %>% 
   bind_rows(read_csv("../data/results_df_201-300.csv")) %>% 
   bind_rows(read_csv("../data/results_df_301-350.csv")) %>% 
   bind_rows(read_csv("../data/results_df_351-450.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_451-500.csv")) %>% 
   separate(v1, c("algorithm", "sampling"), "_", FALSE) %>% 
   mutate(
     v1 = as.factor(v1),
@@ -13,19 +16,33 @@ dat <- read_csv("../data/results_df.csv") %>%
       algorithm, levels = c("c50", "adaboost", "randomforest", "xgboost")
       ),
     sampling = as.factor(sampling),
+    predict_vars = linear_vars + 5,
     iter = as.factor(iter)
   )
 names(dat)[1] <- "model"
+dat <- dat[, !names(dat) %in% c("cor_vars", "linear_vars")]
 
 glimpse(dat)
 summary(dat)
 
 ## proportion zeros
 prop_zeros <- dat %>% 
-  mutate(total_pos = fp + fp) %>% 
+  mutate(total_pos = tp + fp) %>% 
   group_by(model) %>% 
   summarise_at("total_pos", funs(mean(. == 0))) %>% 
   arrange(desc(total_pos))
+
+#prop_zero_rec_prec <- dat %>% 
+# mutate(zero_rec_prec = rec + prec == 0) %>% 
+#  group_by(model) %>% 
+#  summarise_at("zero_rec_prec", funs(mean(. == TRUE))) %>% 
+#  arrange(desc(zero_rec_prec))
+
+prop_f1_nan <- dat %>% 
+  mutate(f1_nan = is.nan(f1)) %>% 
+  group_by(model) %>% 
+  summarise_at("f1_nan", funs(mean(. == TRUE))) %>% 
+  arrange(desc(f1_nan))
 
 good_models <- prop_zeros %>% 
   filter(total_pos == 0) %>% 
@@ -48,7 +65,7 @@ ggplot(dat[dat$model %in% good_models, ],
  
 ## bivariate correlations
 dat[unique(dat$iter) ,c("prec", "rec", "f1", "n", "noise_vars", 
-       "cor_vars", "linear_vars", "minority_size")] %>% 
+       "predict_vars", "minority_size")] %>% 
   cor(use = "pairwise.complete.obs") %>% 
   round(3)
 
@@ -149,3 +166,33 @@ score_sds <- data.frame(rec_sd, prec_sd, f1_sd) %>%
   as.data.frame() %>% 
   rownames_to_column("model") %>% 
   filter(model %in% good_models)
+
+## correlation between characteristics of the data and scores for each model
+vars <- c("n", "minority_size", "predict_vars", "noise_vars")
+f1_cors <- lapply(good_models, function(x) {
+  temp <- dat[(dat$model == x) & 
+                (dat$model %in% good_models) & 
+                (!is.nan(dat$f1)), ]
+  cor(temp[, c("f1", vars)])[-1, 1]
+})
+names(f1_cors) <- good_models
+f1_cors
+
+prec_cors <- lapply(good_models, function(x) {
+  temp <- dat[(dat$model == x) & 
+                (dat$model %in% good_models) & 
+                (!is.nan(dat$prec)), ]
+  cor(temp[, c("prec", vars)])[-1, 1]
+})
+names(prec_cors) <- good_models
+prec_cors
+
+rec_cors <- lapply(good_models, function(x) {
+  temp <- dat[(dat$model == x) & 
+                (dat$model %in% good_models) & 
+                (!is.nan(dat$rec)), ]
+  cor(temp[, c("rec", vars)])[-1, 1]
+})
+names(rec_cors) <- good_models
+rec_cors
+
