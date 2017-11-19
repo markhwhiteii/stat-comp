@@ -8,7 +8,7 @@ output: pdf_document
 
 ## Data Generating Process
 
-Two class data were simulated by adapting the `caret::twoClassSim` R function (Kuhn, 2008):  
+Two class data were simulated by adapting the `twoClassSim` function from the `caret` R package (Kuhn, 2008):  
 
 - Two multivariate normal predictors ($A$ and $B$) are generated. $A$ and $B$ are correlated at $r = .65$. These two variables contributed to the log-odds by $4A + 4B + 2AB$.  
 
@@ -26,7 +26,27 @@ Two class data were simulated by adapting the `caret::twoClassSim` R function (K
 
 ## Sampling Techniques
 
+Data were preprocessed using four different techniques (using the `ubUnder`, `ubOver`, and `ubSMOTE` functions from the `unbalanced` R package, respectively; CITE, XXXX):  
+
+- **Undersampling.** Cases were randomly dropped from the majority (i.e., negative) class until it was the same size as the minority (i.e., positive) class. For example, if there were $i$ cases in the minority and $j$ cases in the majority class, $j - i$ cases were randomly discarded from the majority class.  
+
+- **Oversampling.** Cases were randomly replicated, with replacement, from the minority class until it was the same size as the majority class. For example, if there were $i$ cases in the minority and $j$ cases in the majority class, $j - i$ random replications, with replacement, were made of cases in the minority class.  
+
+- **Synthetic minority over-sampling technique (SMOTE).** "Synthetic" cases are made from the minority class as a way to "oversample" it, while certain cases from the majority class are randomly dropped from the data set. There are many variants of SMOTE, but I employed the version described by Chawla, Bowyer, Hall, & Kegelmeyer (2002). Synthetic cases were created by (a) finding the $k$ nearest neighbors, with $k$ set to 5, for each case from the minority class, (b) randomly selecting 2 of these nearest neighbors for each case, (c) calculate a line connecting the original case to each of these two randomly-selected nearest neighbors, (d) choosing a random point on this line and saving it as a new case, and (e) labeling this new case part of the minority class. For each synthetically-generated minority case, 2 of the cases from the majority class were included in the "SMOTEd" data set. For example, if an original data set contained 90 cases in the negative class and 10 in the positive class, the "SMOTEd" data set would include 40 negative cases and 30 positive cases.  
+
+- **None.** This was a control condition, and no preprocessing was done to the data. The class imbalance was not adjusted for in the preparation of the data.  
+
 ## Algorithms
+
+Predictions were made using four different algorithms:  
+
+- **Random forest.** I employed Breiman's (2001) random forest approach using the `randomForest` function from the R package of the same name (CITE, XXXX). This involves training $t$ number of decision trees on a reduced data set with a subset of $p$ predictors and $n$ resampled—with replacement—cases from the inputted data set. Predictions are made by letting each of these $t$ trees predict the outcome for any given case, and a simple majority vote is taken on how to classify the case. For example, if 80 trees predicted "A" and 20 trees predicted "B," the case would be predicted as class "A." In the event of a tie, the prediction is randomly made. For the current study, I set $t = 100$, $p$ equal to the square root of the number of predictors in the inputted data set, and $n$ equal to the number of cases in the inputted data set. I did not limit how many nodes each tree was allowed to form, and the minimum number of cases required to create a node was set at one.  
+
+- **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (CITE, XXXX). This algorithm also involves training $t$ number of decision trees (note that the method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: sign($\alpha_1h_t(x) + ... + \alpha_th_t(x)$) where $t$ is the total number of trees. For the current study, I set $t = 10$.  
+
+- **XGBoost.** 
+
+- **C5.0.**
 
 ## Metrics
 
