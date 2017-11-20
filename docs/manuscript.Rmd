@@ -40,15 +40,31 @@ Data were preprocessed using four different techniques (using the `ubUnder`, `ub
 
 Predictions were made using four different algorithms:  
 
-- **Random forest.** I employed Breiman's (2001) random forest approach using the `randomForest` function from the R package of the same name (CITE, XXXX). This involves training $t$ number of decision trees on a reduced data set with a subset of $p$ predictors and $n$ resampled—with replacement—cases from the inputted data set. Predictions are made by letting each of these $t$ trees predict the outcome for any given case, and a simple majority vote is taken on how to classify the case. For example, if 80 trees predicted "A" and 20 trees predicted "B," the case would be predicted as class "A." In the event of a tie, the prediction is randomly made. For the current study, I set $t = 100$, $p$ equal to the square root of the number of predictors in the inputted data set, and $n$ equal to the number of cases in the inputted data set. I did not limit how many nodes each tree was allowed to form, and the minimum number of cases required to create a node was set at one.  
+- **Random forest.** I employed Breiman's (2001) random forest approach using the `randomForest` function from the R package of the same name (CITE, XXXX). This involves training $t$ number of decision trees on a reduced data set with a subset of $p$ predictors and $n$ resampled—with replacement—cases from the inputted data set. Predictions are made by letting each of these $t$ trees predict the outcome for any given case, and a simple majority vote is taken on how to classify the case. For example, if 80 trees predicted "A" and 20 trees predicted "B," the case would be predicted as class "A." In the event of a tie, the prediction is randomly made. For the current study, I set $t = 100$, $p$ equal to the square root of the number of predictors in the inputted data set, and $n$ equal to the number of cases in the inputted data set. I did not limit how many nodes each tree was allowed to form, and the minimum number of cases required to create a node was set at one. Given `X` as the inputs and `y` as the class label, the code for the random forest was:  
 
-- **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (CITE, XXXX). This algorithm also involves training $t$ number of decision trees (note that the method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: sign($\alpha_1h_t(x) + ... + \alpha_th_t(x)$) where $t$ is the total number of trees. For the current study, I set $t = 10$.  
+``` {r eval = FALSE}
+randomForest(X, y, ntree = 100)
+```
 
-- **XGBoost.** 
+- **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (CITE, XXXX). This algorithm also involves training $t$ number of decision trees (the method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree $t = 3$, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: sign($\alpha_1h_1(x) + ... + \alpha_th_t(x)$) where $t$ is the total number of trees, $\alpha$ are weights, and $h_t(x)$ are predictions from a tree. For the current study, I set $t = 10$. Given `y` as the class label and `data` as the name of the data frame, the code for AdaBoost was:  
 
-- **C5.0.**
+``` {r eval = FALSE}
+adaboost(y ~ ., data, nIter = 10)
+```
 
-## Metrics
+- **Gradient boosting.** I employed the other most popular form of boosting, gradient boosting, as well. I used the "extreme gradient boosting," or "XGBoost" variant (CITE, XXXX) of gradient boosting, using the `xgboost` function from the R package of the same name (CITE, XXXX). While AdaBoost learns from the "mistakes" of previous trees (again, other classifiers can be used here, but decision trees are employed in the current study) by calculating weights for the cases, gradient boosting learns from the "mistakes" by training trees $t$ that are trained on the residuals of $t - 1$. Residuals are treated as negative gradients, and the model is updated with new trees $t$ using gradient descent. XGBoost is one of the most popular implementations, providing a number of optimizations of gradient boosting in both terms of efficiency and accuracy (CITE, XXXX). Like with AdaBoost, I set the number of trees to fit at $t = 10$; the rest of the hyperparameters were left to the package defaults. The code for XGBoost was:  
+
+```{r eval = FALSE}
+xgboost(X, y, nrounds = 10, verbose = 0, objective = "binary:logistic")
+```
+
+- **Decision tree.** I also employed one decision tree as a "control," non-ensemble learner. I used Ross Quinlan's C5.0 algorithm (see CITE, XXXX for a description) using the `C5.0` function from the `C50` R package (CITE , XXXX). The code for this decision tree was:  
+
+```{r eval = FALSE}
+C5.0(X, y)
+```
+
+## Performance Assessment
 
 
 
