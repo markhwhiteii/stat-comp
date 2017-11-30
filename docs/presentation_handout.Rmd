@@ -1,0 +1,259 @@
+---
+output: pdf_document
+---
+
+```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
+library(tidyverse)
+library(ggridges)
+library(knitr)
+library(rstan)
+dat <- read_csv("../data/results_df.csv") %>% 
+  bind_rows(read_csv("../data/results_df_101-150.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_151-200.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_201-300.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_301-350.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_351-450.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_451-500.csv")) %>% 
+  separate(v1, c("algorithm", "sampling"), "_", FALSE) %>% 
+  mutate(
+    v1 = as.factor(v1),
+    algorithm = factor(
+      algorithm, levels = c("c50", "adaboost", "randomforest", "xgboost")
+      ),
+    sampling = as.factor(sampling),
+    predict_vars = linear_vars + 5,
+    iter = as.factor(iter),
+    spec = tn / (tn + fp),
+    auc_roc = (1 + rec - (1 - spec)) / 2
+  )
+names(dat)[1] <- "model"
+levels(dat$model) <- c(
+  "AdaBoost, None", "AdaBoost, Over", "AdaBoost, SMOTE", "AdaBoost, Under",
+  "C5.0, None", "C5.0, Over", "C5.0, SMOTE", "C5.0, Under",
+  "Random Forest, None", "Random Forest, Over", 
+  "Random Forest, SMOTE", "Random Forest, Under",
+  "XGBoost, None", "XGBoost, Over", "XGBoost, SMOTE", "XGBoost, Under")
+dat <- dat[, !names(dat) %in% c("cor_vars", "linear_vars")]
+```
+  
+# Class Imbalance
+- Minority class much smaller than majority  
+- Class of interest ("positive class"), e.g., is only 5% of data  
+- Problem: 95% accurate guessing all negative; not helpful algorithm  
+
+## Sampling Techniques
+
+### Over
+- Randomly replicate minority class samples until training data is balanced  
+
+### Under
+- Randomly throw out majority class samples until training data is balanced  
+
+### SMOTE
+- Create synthetic minority cases, based on $k$-nearest neighbors  
+
+## Ensembling Algorithms
+
+### Bagging
+- In this study, using random forest  
+- Bootstrap the training data, select a subset of predictors, train decision tree on this data  
+- Do this a given number of times  
+- Prediction is majority vote of all of these decision trees  
+
+### Boosting
+- In this study, using AdaBoost and XGBoost  
+- Both train trees *serially*  
+- Learn from the mistakes of past trees by updating weights based on mistakes or updating based on the residuals using gradient descent  
+
+# Data Generation
+- Two multivariate normal predictors ($A$ and $B$) are generated. $A$ and $B$ are correlated at $r = .65$. These two variables contributed to the log-odds by $4A + 4B + 2AB$  
+- Another variable, $J \sim U(-1, 1)$, was generated. This variable further added to the log-odds by $J^3 + 2 \times \exp(-6 \times (J - 0.3)^2)$  
+- Two more variables, $K \sim U(0, 1)$ and $L \sim U(0, 1)$, were generated and contributed to the log-odds by $2 \times \sin(K \times L)$  
+- For each data set, a number $X$ was selected, where $X \sim N(50, 7)$. Another number, $Y$, was selected, where $Y \sim N(.15, .033)$. $Z = X - (X \times Y)$ variables were generated from a $N(0, 1)$ distribution. Each of these $Z$ variables further added to the log-odds in a simple additive fashion, where coefficients were (a) of alternating signs and (b) evenly spaced from $2.50$ to $0.25$  
+- $Y \over 2$ variables were generated from a $N(0, 1)$ distribution and did not contribute to the log-odds  
+- The log-odds for each case were converted to probabilities. For each data set, a positive (i.e., minority) class proportion, $M$, was sampled from $N(.03, .007)$. Probabilities were sorted from lowest to highest. The difference between the probability for the $1 - M$th highest probability and $M$ was calculated, and this constant was added to the probability for each case  
+- Lastly, the number of cases in each data set were randomly drawn from a distribution $N(40000, 5000)$.  500 data sets were generated, and sixteen combinations of sampling techniques and algorithms were fit to each of these data sets  
+
+# Performance Assessment
+
+## Precision
+- $TP \over TP + FP$  
+
+## Recall
+- $TP \over TP + FN$
+
+## F1
+- $F_1 = 2 \times {\text{precision} \times \text{recall} \over \text{precision} + \text{recall}}$
+
+## AUC(ROC)
+- $\text{AUC(ROC)} = {1 + \text{recall} - \text{false positive rate} \over 2}$  
+
+```{r echo = FALSE, out.width = "65%", fig.align = "center"}
+roc <- data.frame(x = c(0, 1, 0, .4, 1),
+                  y = c(0, 1, 0, .6, 1),
+                  z = c(1, 1, 0, 0, 0))
+ggplot(roc, aes(x = x, y = y, linetype = factor(z))) +
+  geom_line() +
+  geom_point(aes(x = .4, y = .6)) +
+  geom_point(aes(x = .5, y = .5)) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = "False Positive Rate", y = "Recall") +
+  annotate("text", x = .35, y = .70, label = "AUC = .60 \n (.40, .60)")
+```
+  
+# Results
+
+## Making Enough Positive Predictions
+```{r echo = FALSE}
+prop_zeros <- dat %>% 
+  mutate(total_pos = tp + fp) %>% 
+  group_by(model) %>% 
+  summarise_at("total_pos", funs(mean(. == 0))) %>% 
+  arrange(desc(total_pos))
+kable(prop_zeros, col.names = c("Model", "Proportion P = 0"))
+```
+  
+```{r echo = FALSE}
+prop_f1_nan <- dat %>% 
+  mutate(f1_nan = is.nan(f1)) %>% 
+  group_by(model) %>% 
+  summarise_at("f1_nan", funs(mean(. == TRUE))) %>% 
+  arrange(desc(f1_nan))
+kable(prop_f1_nan, col.names = c("Model", "Proportion F1 is N/A"))
+```
+  
+## Comparing Mean Performance
+```{r echo = FALSE}
+good_models <- prop_f1_nan %>% 
+  filter(f1_nan == 0) %>% 
+  pull(model) %>% 
+  as.character()
+mean_results <- dat %>% 
+  filter(model %in% good_models) %>% 
+  select(model, prec, rec, f1, auc_roc) %>% 
+  group_by(model) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  arrange(desc(auc_roc))
+kable(mean_results, digits = 3, col.names = 
+        c("Model", "Precision", "Recall", "F1", "AUC(ROC)"))
+```
+  
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+good_dat <- dat[dat$model %in% good_models, ]
+ranked_names <- names(sort(tapply(
+  good_dat$auc_roc, droplevels(good_dat$model), mean, na.rm = TRUE),
+  decreasing = TRUE
+))
+good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
+dat_long_ridge <- good_dat %>% 
+  transmute(
+    model = model, 
+    `AUC(ROC)` = auc_roc, 
+    F1 = f1, 
+    Precision = prec, 
+    Recall = rec) %>% 
+  gather(metric, value, -model)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", 
+               "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+ggplot(dat_long_ridge, aes(y = model, x = value, fill = model)) +
+  geom_density_ridges(alpha = .7) +
+  facet_wrap( ~ metric, scales = "free_x") +
+  theme_minimal() +
+  labs(x = NULL, y = "Model") +
+  theme(text = element_text(size = 14), legend.position = "none") +
+  scale_fill_manual(values = cbPalette)
+```
+  
+```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
+stan_code <- "
+data {
+  int n; // observations
+  int k; // number of models
+  real gm; // grand mean
+  real psigmu; // prior for mu_sigma
+  int x[n]; // group indicator
+  vector[n] y; // outcome
+}
+parameters {
+  real alpha[k]; // model means
+  real<lower=0> sigma; // error
+}
+transformed parameters {
+  real rf_xg_diff; // compare rf and xg
+  real rf_ada_diff; // compare rf and ada
+  real xg_ada_diff; // compare xg and ada
+  rf_xg_diff = alpha[1] - alpha[2]; // compute diff
+  rf_ada_diff = alpha[1] - alpha[3]; // compute diff
+  xg_ada_diff = alpha[2] - alpha[3]; // compute diff
+}
+model {
+  vector[n] mu; // expected value
+  for (i in 1:n) { // for all people
+    mu[i] = alpha[x[i]]; //their mu is their group's mean
+  }
+  y ~ normal(mu, sigma); // likelihood
+  alpha ~ normal(gm, psigmu); // prior, defined from data
+  sigma ~ cauchy(0, 1); // uninformative prior on sigma
+}
+"
+dat_long <- good_dat %>% 
+  mutate(model = as.numeric(model)) %>% 
+  select(model, auc_roc, f1, prec, rec)
+set.seed(1839)
+sdat_aucroc <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$auc_roc), psigmu = .10, x = dat_long$model,
+                    y = dat_long$auc_roc)
+sdat_f1 <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$f1), psigmu = .005, x = dat_long$model,
+                    y = dat_long$f1)
+sdat_prec <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$prec), psigmu = .005, x = dat_long$model,
+                    y = dat_long$prec)
+sdat_rec <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$rec), psigmu = .10, x = dat_long$model,
+                    y = dat_long$rec)
+mdiff_aucroc <- stan(model_code = stan_code, data = sdat_aucroc,
+                     control = list(max_treedepth = 15))
+mdiff_f1 <- stan(model_code = stan_code, data = sdat_f1,
+                 control = list(max_treedepth = 15))
+mdiff_prec <- stan(model_code = stan_code, data = sdat_prec,
+                   control = list(max_treedepth = 15))
+mdiff_rec <- stan(model_code = stan_code, data = sdat_rec,
+                  control = list(max_treedepth = 15))
+mean_diffs <- round(summary(mdiff_aucroc)$summary[10:12, c(1, 4, 8)], 3) %>% 
+  rbind(round(summary(mdiff_f1)$summary[10:12, c(1, 4, 8)], 3)) %>% 
+  rbind(round(summary(mdiff_rec)$summary[10:12, c(1, 4, 8)], 3)) %>% 
+  rbind(round(summary(mdiff_prec)$summary[10:12, c(1, 4, 8)], 3)) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("Pairwise Comparison") %>% 
+  mutate(`Pairwise Comparison` = rep(c(
+        "Random Forest - XGBoost", 
+        "Random Forest - AdaBoost",
+        "XGBoost - AdaBoost"), 4),
+         Outcome = c("AUC(ROC)", "", "", "F1", "", "",
+                     "Recall", "", "", "Precision", "", ""))
+mean_diffs <- mean_diffs[, c(5, 1, 2:4)]
+colnames(mean_diffs)[3] <- "Difference"
+```
+``` {r echo = FALSE}
+kable(mean_diffs)
+```
+  
+## Performance With Data Characteristics
+```{r echo = FALSE}
+auc_cor_dat <- dat[dat$model %in% good_models, ] %>% 
+  transmute(Model = model, `AUC(ROC)` = auc_roc, N = n,  
+            `Minority Size` = minority_size, Predictors = predict_vars,
+            `Noise Variables` = noise_vars) %>% 
+  gather("key", "value", 3:6)
+ggplot(auc_cor_dat, 
+       aes(x = value, y = `AUC(ROC)`, group = Model, color = Model)) +
+  geom_point(alpha = .4) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ key, scales = "free_x") +
+  labs(x = NULL) +
+  theme_minimal() +
+  scale_colour_manual(values = cbPalette)
+```
+  
