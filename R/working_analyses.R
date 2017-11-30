@@ -1,7 +1,5 @@
 library(tidyverse)
 library(ggridges)
-library(lme4)
-library(lmerTest)
 dat <- read_csv("../data/results_df.csv") %>% 
   bind_rows(read_csv("../data/results_df_101-150.csv")) %>% 
   bind_rows(read_csv("../data/results_df_151-200.csv")) %>% 
@@ -17,7 +15,9 @@ dat <- read_csv("../data/results_df.csv") %>%
       ),
     sampling = as.factor(sampling),
     predict_vars = linear_vars + 5,
-    iter = as.factor(iter)
+    iter = as.factor(iter),
+    spec = tn / (tn + fp),
+    auc_roc = (1 + rec - (1 - spec)) / 2
   )
 names(dat)[1] <- "model"
 dat <- dat[, !names(dat) %in% c("cor_vars", "linear_vars")]
@@ -32,22 +32,28 @@ prop_zeros <- dat %>%
   summarise_at("total_pos", funs(mean(. == 0))) %>% 
   arrange(desc(total_pos))
 
-#prop_zero_rec_prec <- dat %>% 
-# mutate(zero_rec_prec = rec + prec == 0) %>% 
-#  group_by(model) %>% 
-#  summarise_at("zero_rec_prec", funs(mean(. == TRUE))) %>% 
-#  arrange(desc(zero_rec_prec))
-
 prop_f1_nan <- dat %>% 
   mutate(f1_nan = is.nan(f1)) %>% 
   group_by(model) %>% 
   summarise_at("f1_nan", funs(mean(. == TRUE))) %>% 
   arrange(desc(f1_nan))
 
-good_models <- prop_zeros %>% 
-  filter(total_pos == 0) %>% 
+good_models <- prop_f1_nan %>% 
+  filter(f1_nan == 0) %>% 
   pull(model) %>% 
   as.character()
+
+## summarize results
+mean_results <- dat %>% 
+  filter(model %in% good_models) %>% 
+  select(model, prec, rec, f1, auc_roc) %>% 
+  group_by(model) %>% 
+  summarise_if(is.numeric, mean)
+
+mean_results_all <- dat %>% 
+  select(model, prec, rec, spec, f1, auc_roc) %>% 
+  group_by(model) %>% 
+  summarise_if(is.numeric, mean, na.rm = TRUE)
 
 ## correlation between precision and recall
 prec_rec_cors <- sapply(good_models, function(x) {
@@ -81,7 +87,8 @@ summary(model_sampling)
 dat_summary <- dat %>% 
   filter(model %in% good_models) %>% 
   group_by(algorithm, sampling) %>% 
-  summarise_at(vars(prec, rec, f1), funs(mean(., na.rm = TRUE)))
+  summarise_at(vars(prec, rec, f1, auc_roc), 
+               funs(mean(., na.rm = TRUE)))
 
 plot_precision <- ggplot(dat_summary, 
                          aes(x = algorithm, y = prec, fill = sampling)) +
@@ -102,7 +109,7 @@ good_dat <- dat[dat$model %in% good_models, ]
 
 # precision
 ranked_names <- names(sort(tapply(
-  good_dat$prec, droplevels(good_dat$model), mean, na.rm = TRUE), ## WHY SOME NA?
+  good_dat$prec, droplevels(good_dat$model), mean, na.rm = TRUE),
   decreasing = TRUE
 ))
 good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
@@ -135,9 +142,8 @@ ridge_f1 <- ggplot(good_dat, aes(y = model, x = f1)) +
 
 ## all in one plot
 dat_long_ridge <- good_dat %>% 
-  transmute(model, f1, prec, rec) %>% 
+  transmute(model, auc_roc, f1, prec, rec) %>% 
   gather(metric, value, -model)
-
 ridge_all <- ggplot(dat_long_ridge, aes(y = model, x = value)) +
   geom_density_ridges(alpha = .7) +
   facet_wrap( ~ metric, scales = "free_x") +
@@ -169,6 +175,14 @@ score_sds <- data.frame(rec_sd, prec_sd, f1_sd) %>%
 
 ## correlation between characteristics of the data and scores for each model
 vars <- c("n", "minority_size", "predict_vars", "noise_vars")
+auc_roc_cors <- lapply(good_models, function(x) {
+  temp <- dat[(dat$model == x) & 
+                (dat$model %in% good_models) & 
+                (!is.nan(dat$f1)), ]
+  cor(temp[, c("auc_roc", vars)])[-1, 1]
+})
+names(auc_roc_cors) <- good_models
+
 f1_cors <- lapply(good_models, function(x) {
   temp <- dat[(dat$model == x) & 
                 (dat$model %in% good_models) & 
@@ -176,7 +190,6 @@ f1_cors <- lapply(good_models, function(x) {
   cor(temp[, c("f1", vars)])[-1, 1]
 })
 names(f1_cors) <- good_models
-f1_cors
 
 prec_cors <- lapply(good_models, function(x) {
   temp <- dat[(dat$model == x) & 
@@ -185,7 +198,6 @@ prec_cors <- lapply(good_models, function(x) {
   cor(temp[, c("prec", vars)])[-1, 1]
 })
 names(prec_cors) <- good_models
-prec_cors
 
 rec_cors <- lapply(good_models, function(x) {
   temp <- dat[(dat$model == x) & 
@@ -194,5 +206,12 @@ rec_cors <- lapply(good_models, function(x) {
   cor(temp[, c("rec", vars)])[-1, 1]
 })
 names(rec_cors) <- good_models
-rec_cors
+
+auc_cor_dat <- dat[dat$model %in% good_models, ] %>% 
+  
+
+auc_n
+auc_minority_size
+auc_predictors
+auc_noise
 
