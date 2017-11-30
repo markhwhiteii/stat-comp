@@ -4,6 +4,40 @@ author: "Mark H. White II | markhwhiteii@gmail.com"
 output: pdf_document
 ---
 
+```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
+library(tidyverse)
+library(ggridges)
+library(knitr)
+library(rstan)
+dat <- read_csv("../data/results_df.csv") %>% 
+  bind_rows(read_csv("../data/results_df_101-150.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_151-200.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_201-300.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_301-350.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_351-450.csv")) %>% 
+  bind_rows(read_csv("../data/results_df_451-500.csv")) %>% 
+  separate(v1, c("algorithm", "sampling"), "_", FALSE) %>% 
+  mutate(
+    v1 = as.factor(v1),
+    algorithm = factor(
+      algorithm, levels = c("c50", "adaboost", "randomforest", "xgboost")
+      ),
+    sampling = as.factor(sampling),
+    predict_vars = linear_vars + 5,
+    iter = as.factor(iter),
+    spec = tn / (tn + fp),
+    auc_roc = (1 + rec - (1 - spec)) / 2
+  )
+names(dat)[1] <- "model"
+levels(dat$model) <- c(
+  "AdaBoost, None", "AdaBoost, Over", "AdaBoost, SMOTE", "AdaBoost, Under",
+  "C5.0, None", "C5.0, Over", "C5.0, SMOTE", "C5.0, Under",
+  "Random Forest, None", "Random Forest, Over", 
+  "Random Forest, SMOTE", "Random Forest, Under",
+  "XGBoost, None", "XGBoost, Over", "XGBoost, SMOTE", "XGBoost, Under")
+dat <- dat[, !names(dat) %in% c("cor_vars", "linear_vars")]
+```
+
 # Method
 
 ## Data Generating Process
@@ -26,7 +60,7 @@ Two class data were simulated by adapting the `twoClassSim` function from the `c
 
 ## Sampling Techniques
 
-Data were preprocessed using four different techniques (using the `ubUnder`, `ubOver`, and `ubSMOTE` functions from the `unbalanced` R package, respectively; CITE, XXXX):  
+Data were preprocessed using four different techniques (using the `ubUnder`, `ubOver`, and `ubSMOTE` functions from the `unbalanced` R package, respectively; Pozzolo, Caelen, & Bontempi, 2015):  
 
 - **Undersampling.** Cases were randomly dropped from the majority (i.e., negative) class until it was the same size as the minority (i.e., positive) class. For example, if there were $i$ cases in the minority and $j$ cases in the majority class, $j - i$ cases were randomly discarded from the majority class.  
 
@@ -40,25 +74,25 @@ Data were preprocessed using four different techniques (using the `ubUnder`, `ub
 
 Predictions were made using four different algorithms:  
 
-- **Random forest.** I employed Breiman's (2001) random forest approach using the `randomForest` function from the R package of the same name (CITE, XXXX). This involves training $t$ number of decision trees on a reduced data set with a subset of $p$ predictors and $n$ resampled—with replacement—cases from the inputted data set. Predictions are made by letting each of these $t$ trees predict the outcome for any given case, and a simple majority vote is taken on how to classify the case. For example, if 80 trees predicted "A" and 20 trees predicted "B," the case would be predicted as class "A." In the event of a tie, the prediction is randomly made. For the current study, I set $t = 100$, $p$ equal to the square root of the number of predictors in the inputted data set, and $n$ equal to the number of cases in the inputted data set. I did not limit how many nodes each tree was allowed to form, and the minimum number of cases required to create a node was set at one. Given `X` as the inputs and `y` as the class label, the code for the random forest was:  
+- **Random forest.** I employed Breiman's (2001) random forest approach using the `randomForest` function from the R package of the same name (Liaw & Wiener, 2002). This involves training $t$ number of decision trees on a reduced data set with a subset of $p$ predictors and $n$ resampled—with replacement—cases from the inputted data set. Predictions are made by letting each of these $t$ trees predict the outcome for any given case, and a simple majority vote is taken on how to classify the case. For example, if 80 trees predicted "A" and 20 trees predicted "B," the case would be predicted as class "A." In the event of a tie, the prediction is randomly made. For the current study, I set $t = 100$, $p$ equal to the square root of the number of predictors in the inputted data set, and $n$ equal to the number of cases in the inputted data set. I did not limit how many nodes each tree was allowed to form, and the minimum number of cases required to create a node was set at one. Given `X` as the inputs and `y` as the class label, the code for the random forest was:  
 
 ``` {r eval = FALSE}
 randomForest(X, y, ntree = 100)
 ```
 
-- **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (CITE, XXXX). This algorithm also involves training $t$ number of decision trees (the method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree $t = 3$, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: sign($\alpha_1h_1(x) + ... + \alpha_th_t(x)$) where $t$ is the total number of trees, $\alpha$ are weights, and $h_t(x)$ are predictions from a tree. For the current study, I set $t = 10$. Given `y` as the class label and `data` as the name of the data frame, the code for AdaBoost was:  
+- **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (Chatterjee, 2016). This algorithm also involves training $t$ number of decision trees (the method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree $t = 3$, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: sign($\alpha_1h_1(x) + ... + \alpha_th_t(x)$) where $t$ is the total number of trees, $\alpha$ are weights, and $h_t(x)$ are predictions from a tree. For the current study, I set $t = 10$. Given `y` as the class label and `data` as the name of the data frame, the code for AdaBoost was:  
 
 ``` {r eval = FALSE}
 adaboost(y ~ ., data, nIter = 10)
 ```
 
-- **Gradient boosting.** I employed the other most popular form of boosting, gradient boosting, as well. I used the "extreme gradient boosting," or "XGBoost" variant (CITE, XXXX) of gradient boosting, using the `xgboost` function from the R package of the same name (CITE, XXXX). While AdaBoost learns from the "mistakes" of previous trees (again, other classifiers can be used here, but decision trees are employed in the current study) by calculating weights for the cases, gradient boosting learns from the "mistakes" by training trees $t$ that are trained on the residuals of $t - 1$. Residuals are treated as negative gradients, and the model is updated with new trees $t$ using gradient descent. XGBoost is one of the most popular implementations, providing a number of optimizations of gradient boosting in both terms of efficiency and accuracy (CITE, XXXX). Like with AdaBoost, I set the number of trees to fit at $t = 10$; the rest of the hyperparameters were left to the package defaults. The code for XGBoost was:  
+- **Gradient boosting.** I employed the other most popular form of boosting, gradient boosting, as well. I used the "extreme gradient boosting," or "XGBoost" variant (Chen & Guestrin, 2016) of gradient boosting, using the `xgboost` function from the R package of the same name (Chen, He, Benesty, Khotilovich, & Yang, 2017). While AdaBoost learns from the "mistakes" of previous trees (again, other classifiers can be used here, but decision trees are employed in the current study) by calculating weights for the cases, gradient boosting learns from the "mistakes" by training trees $t$ that are trained on the residuals of $t - 1$. Residuals are treated as negative gradients, and the model is updated with new trees $t$ using gradient descent. XGBoost is one of the most popular implementations, providing a number of optimizations of gradient boosting in both terms of efficiency and accuracy. Like with AdaBoost, I set the number of trees to fit at $t = 10$; the rest of the hyperparameters were left to the package defaults. The code for XGBoost was:  
 
 ```{r eval = FALSE}
 xgboost(X, y, nrounds = 10, verbose = 0, objective = "binary:logistic")
 ```
 
-- **Decision tree.** I also employed one decision tree as a "control," non-ensemble learner. I used Ross Quinlan's C5.0 algorithm (see CITE, XXXX for a description) using the `C5.0` function from the `C50` R package (CITE , XXXX). The code for this decision tree was:  
+- **Decision tree.** I also employed one decision tree as a "control," non-ensemble learner. I used Ross Quinlan's C5.0 algorithm (see Kuhn & Johnson, 2013 for a description) using the `C5.0` function from the `C50` R package (Kuhn, Weston, Coulter, & Culp, 2015). The code for this decision tree was:  
 
 ```{r eval = FALSE}
 C5.0(X, y)
@@ -66,8 +100,182 @@ C5.0(X, y)
 
 ## Performance Assessment
 
+Overall accuracy of a learner is not a useful metric for assessing performance in the presence of class imbalance. For example, if the positive class is only 2% of the data set, then we could achieve 98% accuracy simply by labeling every class in the negative. This is essentially useless, given that the whole reason of undertaking the machine learning task is to be able to predict the positive class. For this reason, I will focus on four other metrics:  
 
+- **Recall.** The proportion of positive (i.e., minority) cases that were predicted correctly. This is the number of true positives (TP) over the sum of TP and false negatives (FN). This is a measure of what proportion of the cases we were interested in predicting correctly were actually recovered by our model.  
+
+- **Precision.** The proportion of *correct* positive predictions. This is TP over the sum of TP and false positives (FP). This is a measure of what proportion of the cases we predicted as a positive class were *actually* of the positive class. This is also known as "positive predictive value," because it measures how "valuable" a positive prediction is.  
+
+- **F1 score.** This is the harmonic mean of recall and precision. It is a weighted mean where both recall and precision contribute to the score equally. It is one way to assess model performance when classes are imbalanced (CITE, XXXX), as it balances the benefit of predicting a minority class correctly with the cost of predicting a majority class incorrectly. Scores range from 0 (worst) to 1 (perfect).  
+
+```{r echo = FALSE, out.width = "65%", fig.align = "center"}
+roc <- data.frame(x = c(0, 1, 0, .4, 1),
+                  y = c(0, 1, 0, .6, 1),
+                  z = c(1, 1, 0, 0, 0))
+ggplot(roc, aes(x = x, y = y, linetype = factor(z))) +
+  geom_line() +
+  geom_point(aes(x = .4, y = .6)) +
+  geom_point(aes(x = .5, y = .5)) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = "False Positive Rate", y = "Recall") +
+  annotate("text", x = .35, y = .70, label = "AUC = .60 \n (.40, .60)")
+```
+
+- **AUC(ROC).** This is short for the "area under the receiver operating characteristic curve." In the present analyses, each model will have a curve determined by one point in two-dimensional space. The model's false positive rate (FP / (FP + TN)) is plotted on the x-axis, while the recall is plotted on the y-axis. One point is plotted for each model. A straight line then connects the point to the bottom-left and top-right corners of the figure. The area underneath this curve is the AUC. It is calculated as (1 + recall - false positive rate) / 2. See Figure 1 for an example. Random guessing is denoted by the dotted line, where AUC is 0.5.  
 
 # Results
+
+## Comparing Models
+```{r echo = FALSE}
+prop_zeros <- dat %>% 
+  mutate(total_pos = tp + fp) %>% 
+  group_by(model) %>% 
+  summarise_at("total_pos", funs(mean(. == 0))) %>% 
+  arrange(desc(total_pos))
+kable(prop_zeros, col.names = c("Model", "Proportion P = 0"))
+```
+
+```{r echo = FALSE}
+prop_f1_nan <- dat %>% 
+  mutate(f1_nan = is.nan(f1)) %>% 
+  group_by(model) %>% 
+  summarise_at("f1_nan", funs(mean(. == TRUE))) %>% 
+  arrange(desc(f1_nan))
+kable(prop_f1_nan, col.names = c("Model", "Proportion F1 is N/A"))
+```
+
+```{r echo = FALSE}
+good_models <- prop_f1_nan %>% 
+  filter(f1_nan == 0) %>% 
+  pull(model) %>% 
+  as.character()
+mean_results <- dat %>% 
+  filter(model %in% good_models) %>% 
+  select(model, prec, rec, f1, auc_roc) %>% 
+  group_by(model) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  arrange(desc(auc_roc))
+kable(mean_results, digits = 3, col.names = 
+        c("Model", "Precision", "Recall", "F1", "AUC(ROC)"))
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+good_dat <- dat[dat$model %in% good_models, ]
+ranked_names <- names(sort(tapply(
+  good_dat$auc_roc, droplevels(good_dat$model), mean, na.rm = TRUE),
+  decreasing = TRUE
+))
+good_dat$model <- factor(good_dat$model, levels = c(ranked_names))
+dat_long_ridge <- good_dat %>% 
+  transmute(
+    model = model, 
+    `AUC(ROC)` = auc_roc, 
+    F1 = f1, 
+    Precision = prec, 
+    Recall = rec) %>% 
+  gather(metric, value, -model)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", 
+               "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+ggplot(dat_long_ridge, aes(y = model, x = value, fill = model)) +
+  geom_density_ridges(alpha = .7) +
+  facet_wrap( ~ metric, scales = "free_x") +
+  theme_minimal() +
+  labs(x = NULL, y = "Model") +
+  theme(text = element_text(size = 14), legend.position = "none") +
+  scale_fill_manual(values = cbPalette)
+```
+
+```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
+stan_code <- "
+data {
+  int n; // observations
+  int k; // number of models
+  real gm; // grand mean
+  real psigmu; // prior for mu_sigma
+  int x[n]; // group indicator
+  vector[n] y; // outcome
+}
+parameters {
+  real alpha[k]; // model means
+  real<lower=0> sigma; // error
+}
+transformed parameters {
+  real rf_xg_diff; // compare rf and xg
+  real rf_ada_diff; // compare rf and ada
+  real xg_ada_diff; // compare xg and ada
+  rf_xg_diff = alpha[1] - alpha[2]; // compute diff
+  rf_ada_diff = alpha[1] - alpha[3]; // compute diff
+  xg_ada_diff = alpha[2] - alpha[3]; // compute diff
+}
+model {
+  vector[n] mu; // expected value
+  for (i in 1:n) { // for all people
+    mu[i] = alpha[x[i]]; //their mu is their group's mean
+  }
+  y ~ normal(mu, sigma); // likelihood
+  alpha ~ normal(gm, psigmu); // prior, defined from data
+  sigma ~ cauchy(0, 1); // uninformative prior on sigma
+}
+"
+dat_long <- good_dat %>% 
+  mutate(model = as.numeric(model)) %>% 
+  select(model, auc_roc, f1, prec, rec)
+set.seed(1839)
+sdat_aucroc <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$auc_roc), psigmu = .10, x = dat_long$model,
+                    y = dat_long$auc_roc)
+sdat_f1 <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$f1), psigmu = .005, x = dat_long$model,
+                    y = dat_long$f1)
+sdat_prec <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$prec), psigmu = .005, x = dat_long$model,
+                    y = dat_long$prec)
+sdat_rec <- list(n = nrow(dat_long), k = length(unique(dat_long$model)), 
+                    gm = mean(dat_long$rec), psigmu = .10, x = dat_long$model,
+                    y = dat_long$rec)
+mdiff_aucroc <- stan(model_code = stan_code, data = sdat_aucroc,
+                     control = list(max_treedepth = 15))
+mdiff_f1 <- stan(model_code = stan_code, data = sdat_f1,
+                 control = list(max_treedepth = 15))
+mdiff_prec <- stan(model_code = stan_code, data = sdat_prec,
+                   control = list(max_treedepth = 15))
+mdiff_rec <- stan(model_code = stan_code, data = sdat_rec,
+                  control = list(max_treedepth = 15))
+mean_diffs <- round(summary(mdiff_aucroc)$summary[10:12, c(1, 4, 8)], 3) %>% 
+  rbind(round(summary(mdiff_f1)$summary[10:12, c(1, 4, 8)], 3)) %>% 
+  rbind(round(summary(mdiff_rec)$summary[10:12, c(1, 4, 8)], 3)) %>% 
+  rbind(round(summary(mdiff_prec)$summary[10:12, c(1, 4, 8)], 3)) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("Pairwise Comparison") %>% 
+  mutate(`Pairwise Comparison` = rep(c(
+        "Random Forest - XGBoost", 
+        "Random Forest - AdaBoost",
+        "XGBoost - AdaBoost"), 4),
+         Outcome = c("AUC(ROC)", "", "", "F1", "", "",
+                     "Recall", "", "", "Precision", "", ""))
+mean_diffs <- mean_diffs[, c(5, 1, 2:4)]
+colnames(mean_diffs)[3] <- "Difference"
+```
+``` {r echo = FALSE}
+kable(mean_diffs)
+```
+  
+## Data Characteristics and Performance
+```{r echo = FALSE}
+auc_cor_dat <- dat[dat$model %in% good_models, ] %>% 
+  transmute(Model = model, `AUC(ROC)` = auc_roc, N = n,  
+            `Minority Size` = minority_size, Predictors = predict_vars,
+            `Noise Variables` = noise_vars) %>% 
+  gather("key", "value", 3:6)
+ggplot(auc_cor_dat, 
+       aes(x = value, y = `AUC(ROC)`, group = Model, color = Model)) +
+  geom_point(alpha = .4) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ key, scales = "free_x") +
+  labs(x = NULL) +
+  theme_minimal() +
+  scale_colour_manual(values = cbPalette)
+```
 
 
