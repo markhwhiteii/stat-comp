@@ -38,27 +38,37 @@ levels(dat$model) <- c(
 dat <- dat[, !names(dat) %in% c("cor_vars", "linear_vars")]
 ```
 
+Many applications of classification problems in machine learning involve class imbalance—a situation where the class of interest (the "minority" or "positive" class) makes up a very small percentage of the total data (i.e., 5% or less of cases are in this class). Algorithms that try to maximize the overall accuracy of prediction bias in favor of the majority (or "negative") class. For example, if 1% of cases are classified as "positive," then an algorithm can ensure 99% accuracy by simply predicting *all* cases as "negative." This obviously misses the whole point of training a model in the first place, as often we are training the model explicitly because we want to be able to predict this class or event with a low base rate. Class imbalance problems arise in important applications: Will a contact lead to a donation to our campaign? Does this person have cancer? Is this credit card transation fraudulent?  
+
+There are a number of ways to address class imbalance in two-class classification problems (Branco, Torgo, & Ribeiro, 2015; Longadge, Dongre, & Malik, 2013). When researchers propose new methods or review a number of them, they generally use real-world, pre-existing data sets to see how their methods perform (Galar, Fernández, Barrenechea, Bustince, & Herrera, 2012; Weiss, McCarthy, & Zabar, 2007). While this adds the benefit of ecological validity, it does not allow us to see systematic relationships between characteristics of the data and performance. Monte Carlo simulation methods (Johnson, 2013) can be used to generate sets of data that are identical in every way, save for characteristics we are interested in studying. Because these simulation methods control aspects of the data while holding everything else constant, simulation studies can yield conclusions like, "Algorithm X outperforms Algorithm Y, but only in small samples." We would know that this is due to the sample size (and not some other aspect of the data), because we can control the sample size in setting the parameters to our simulations.  
+
+The present paper takes a Monte Carlo approach, systematically varying certain aspects about the data across 500 simulations (while holding other aspects constant).  I will analyze all combinations of four algorithmic approaches and four sampling approaches to addressing class imbalance. I will create one data generating process that only allows the following aspects to vary: sample size, amount of class imbalance, number of predictors, and proportion of predictors that are noise (i.e., do not predict the outcome).  
+
 # Method
 
 ## Data Generating Process
 
-Two class data were simulated by adapting the `twoClassSim` function from the `caret` R package (Kuhn, 2008):  
+I generated data with a dichotomous outcome. These data were simulated by adapting the `twoClassSim` function from the `caret` R package (Kuhn, 2008). I generated 500 data sets using the following steps:  
 
-- Two multivariate normal predictors ($A$ and $B$) are generated. $A$ and $B$ are correlated at $r = .65$. These two variables contributed to the log-odds by $4A + 4B + 2AB$.  
+1. The number of cases in each data set were randomly drawn from a distribution, $N(40000, 5000)$.  
 
-- Another variable, $J \sim U(-1, 1)$, was generated. This variable further added to the log-odds by $J^3 + 2 \times \exp(-6 \times (J - 0.3)^2)$.  
+2. Two multivariate normal predictors ($A$ and $B$) were generated, correlating with one another at $r = .65$. These two variables contributed to the log-odds by: $4A + 4B + 2AB$.  
 
-- Two more variables, $K \sim U(0, 1)$ and $L \sim U(0, 1)$, were generated and contributed to the log-odds by $2 \times \sin(K \times L)$.  
+3. Another variable, $J \sim U(-1, 1)$, was generated. This variable further added to the log-odds by: $J^3 + 2 \times \exp(-6 \times (J - 0.3)^2)$.  
 
-- For each data set, a number $X$ was selected, where $X \sim N(50, 7)$. Another number, $Y$, was selected, where $Y \sim N(.15, .033)$. $Z = X - (X \times Y)$ variables were generated from a $N(0, 1)$ distribution. Each of these $Z$ variables further added to the log-odds in a simple additive fashion, where coefficients were (a) of alternating signs and (b) evenly spaced from $2.50$ to $0.25$.  
+4. Two more variables, $K \sim U(0, 1)$ and $L \sim U(0, 1)$, were generated and contributed to the log-odds by: $2 \times \sin(K \times L)$.  
 
-- $Y \over 2$ variables were generated from a $N(0, 1)$ distribution and did not contribute to the log-odds.  
+5. A number $X$ was drawn from a distribution, $N(50, 7)$. Another number $Y$ was drawn from a distribution, $N(.15, .033)$. $Z = X - (X \times Y)$ variables were drawn from a distribution, $N(0, 1)$. Each of these $Z$ variables further added to the log-odds in an additive fashion, where coefficients were (a) of alternating signs and (b) evenly spaced from $2.50$ to $0.25$.  
 
-- The log-odds for each case were converted to probabilities. For each data set, a positive (i.e., minority) class proportion, $M$, was sampled from $N(.03, .007)$. Probabilities were sorted from lowest to highest. The difference between the probability for the $1 - M$th highest probability and $M$ was calculated, and this constant was added to the probability for each case.  
+6. $Y \over 2$ variables were drawn from a distribution, $N(0, 1)$, and did not contribute to the log-odds. However, they were still used as inputs in each of the models.  
 
-- Lastly, the number of cases in each data set were randomly drawn from a distribution $N(40000, 5000)$.  500 data sets were generated, and sixteen combinations of sampling techniques and algorithms were fit to each of these data sets.  
+7. The log-odds for each case were converted to probabilities. For each data set, a positive (i.e., minority) class proportion, $M$, was sampled from a distribution, $N(.03, .007)$. Probabilities were sorted from lowest to highest. The difference between the probability for the $1 - M$th highest probability and $M$ was calculated, and this constant was added to the probability for each case. This was done to ensure the minority class proportion was about $M$.  
 
-## Sampling Techniques
+## Models
+
+For each of the 500 data sets, I randomly divided the data into training and testing sets along a $.70 / .30$ split. I trained 16 models on the training cases for each data set. These models were created by every iteration of 4 sampling techniques and 4 algorithms. I discuss each in turn.  
+
+### Sampling Techniques
 
 Data were preprocessed using four different techniques (using the `ubUnder`, `ubOver`, and `ubSMOTE` functions from the `unbalanced` R package, respectively; Pozzolo, Caelen, & Bontempi, 2015):  
 
@@ -66,49 +76,37 @@ Data were preprocessed using four different techniques (using the `ubUnder`, `ub
 
 - **Oversampling.** Cases were randomly replicated, with replacement, from the minority class until it was the same size as the majority class. For example, if there were $i$ cases in the minority and $j$ cases in the majority class, $j - i$ random replications, with replacement, were made of cases in the minority class.  
 
-- **Synthetic minority over-sampling technique (SMOTE).** "Synthetic" cases are made from the minority class as a way to "oversample" it, while certain cases from the majority class are randomly dropped from the data set. There are many variants of SMOTE, but I employed the version described by Chawla, Bowyer, Hall, & Kegelmeyer (2002). Synthetic cases were created by (a) finding the $k$ nearest neighbors, with $k$ set to 5, for each case from the minority class, (b) randomly selecting 2 of these nearest neighbors for each case, (c) calculate a line connecting the original case to each of these two randomly-selected nearest neighbors, (d) choosing a random point on this line and saving it as a new case, and (e) labeling this new case part of the minority class. For each synthetically-generated minority case, 2 of the cases from the majority class were included in the "SMOTEd" data set. For example, if an original data set contained 90 cases in the negative class and 10 in the positive class, the "SMOTEd" data set would include 40 negative cases and 30 positive cases.  
+- **Synthetic minority over-sampling technique (SMOTE).** "Synthetic" cases were made from the minority class as a way to "oversample" it, while certain cases from the majority class were randomly dropped from the data set. There are many variants of SMOTE, but I employed the version described by Chawla, Bowyer, Hall, & Kegelmeyer (2002). Synthetic cases were created along the following process: for each case in the minority class, (a) find its $k$ nearest neighbors, (b) randomly selecting 2 of these nearest neighbors, (c) calculate a line connecting the original case to each of these two randomly-selected nearest neighbors, (d) choosing a random point on these lines, (e) saving these points as a new case, and (d) labeling these new cases as part of the minority class. For each synthetically-generated minority case, 2 of the cases from the majority class were included in the "SMOTEd" data set. For example, if an original data set contained 90 cases in the negative class and 10 in the positive class, the "SMOTEd" data set would include 40 negative cases and 30 positive cases.  
 
 - **None.** This was a control condition, and no preprocessing was done to the data. The class imbalance was not adjusted for in the preparation of the data.  
 
-## Algorithms
+### Algorithms
 
 Predictions were made using four different algorithms:  
 
-- **Random forest.** I employed Breiman's (2001) random forest approach using the `randomForest` function from the R package of the same name (Liaw & Wiener, 2002). This involves training $t$ number of decision trees on a reduced data set with a subset of $p$ predictors and $n$ resampled—with replacement—cases from the inputted data set. Predictions are made by letting each of these $t$ trees predict the outcome for any given case, and a simple majority vote is taken on how to classify the case. For example, if 80 trees predicted "A" and 20 trees predicted "B," the case would be predicted as class "A." In the event of a tie, the prediction is randomly made. For the current study, I set $t = 100$, $p$ equal to the square root of the number of predictors in the inputted data set, and $n$ equal to the number of cases in the inputted data set. I did not limit how many nodes each tree was allowed to form, and the minimum number of cases required to create a node was set at one. Given `X` as the inputs and `y` as the class label, the code for the random forest was:  
+- **Random forest.** I employed Breiman's (2001) random forest approach using the `randomForest` function from the R package of the same name (Liaw & Wiener, 2002). This involves training $t$ number of decision trees on a reduced data set with a subset of $p$ predictors and $n$ resampled—with replacement—cases from the inputted data set. Predictions are made by letting each of these $t$ trees predict the outcome for any given case, and a simple majority vote is taken on how to classify the case. For example, if 80 trees predicted "A" and 20 trees predicted "B," the case would be predicted as class "A." In the event of a tie, the prediction is randomly made. For the current study, I set $t = 100$, $p$ equal to the square root of the number of predictors in the inputted data set, and $n$ equal to the number of cases in the inputted data set. I did not limit how many nodes each tree was allowed to form, and the minimum number of cases required to create a node was set at one. Given `X` as the inputs and `y` as the class label, the code for the random forest was: `randomForest(X, y, ntree = 100)`.  
 
-``` {r eval = FALSE}
-randomForest(X, y, ntree = 100)
-```
+- **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (Chatterjee, 2016). This algorithm also involves training $t$ number of decision trees (note that this method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree $t = 3$, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: $\text{sign}(\alpha_1h_1(x) + ... + \alpha_th_t(x))$ where $t$ is the total number of trees, $\alpha$ are weights, and $h_t(x)$ are predictions from a tree. For the current study, I set $t = 10$. Given `y` as the class label and `data` as the name of the data frame, the code for AdaBoost was: `adaboost(y ~ ., data, nIter = 10)`.  
 
-- **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (Chatterjee, 2016). This algorithm also involves training $t$ number of decision trees (the method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree $t = 3$, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: sign($\alpha_1h_1(x) + ... + \alpha_th_t(x)$) where $t$ is the total number of trees, $\alpha$ are weights, and $h_t(x)$ are predictions from a tree. For the current study, I set $t = 10$. Given `y` as the class label and `data` as the name of the data frame, the code for AdaBoost was:  
+- **Gradient boosting.** I employed the other most popular form of boosting, gradient boosting, as well. I used the "extreme gradient boosting," or "XGBoost" variant (Chen & Guestrin, 2016) of gradient boosting, using the `xgboost` function from the R package of the same name (Chen, He, Benesty, Khotilovich, & Yang, 2017). While AdaBoost learns from the "mistakes" of previous trees (again, other classifiers can be used here, but decision trees are employed in the current study) by calculating weights for the cases, gradient boosting learns from the "mistakes" by training trees $t$ that are trained on the residuals of $t - 1$. Residuals are treated as negative gradients, and the model is updated with new trees $t$ using gradient descent. XGBoost is one of the most popular implementations, providing a number of optimizations of gradient boosting in both terms of efficiency and accuracy. Like with AdaBoost, I set the number of trees to fit at $t = 10$; the rest of the hyperparameters were left to the package defaults. The code for XGBoost was: `xgboost(X, y, nrounds = 10, objective = "binary:logistic")`.  
 
-``` {r eval = FALSE}
-adaboost(y ~ ., data, nIter = 10)
-```
-
-- **Gradient boosting.** I employed the other most popular form of boosting, gradient boosting, as well. I used the "extreme gradient boosting," or "XGBoost" variant (Chen & Guestrin, 2016) of gradient boosting, using the `xgboost` function from the R package of the same name (Chen, He, Benesty, Khotilovich, & Yang, 2017). While AdaBoost learns from the "mistakes" of previous trees (again, other classifiers can be used here, but decision trees are employed in the current study) by calculating weights for the cases, gradient boosting learns from the "mistakes" by training trees $t$ that are trained on the residuals of $t - 1$. Residuals are treated as negative gradients, and the model is updated with new trees $t$ using gradient descent. XGBoost is one of the most popular implementations, providing a number of optimizations of gradient boosting in both terms of efficiency and accuracy. Like with AdaBoost, I set the number of trees to fit at $t = 10$; the rest of the hyperparameters were left to the package defaults. The code for XGBoost was:  
-
-```{r eval = FALSE}
-xgboost(X, y, nrounds = 10, verbose = 0, objective = "binary:logistic")
-```
-
-- **Decision tree.** I also employed one decision tree as a "control," non-ensemble learner. I used Ross Quinlan's C5.0 algorithm (see Kuhn & Johnson, 2013 for a description) using the `C5.0` function from the `C50` R package (Kuhn, Weston, Coulter, & Culp, 2015). The code for this decision tree was:  
-
-```{r eval = FALSE}
-C5.0(X, y)
-```
+- **Decision tree.** I also employed one decision tree as a "control" non-ensemble learner. I used Ross Quinlan's C5.0 algorithm (see Kuhn & Johnson, 2013 for a description) using the `C5.0` function from the `C50` R package (Kuhn, Weston, Coulter, & Culp, 2015). The code for this decision tree was: `C5.0(X, y)`.  
 
 ## Performance Assessment
 
-Overall accuracy of a learner is not a useful metric for assessing performance in the presence of class imbalance. For example, if the positive class is only 2% of the data set, then we could achieve 98% accuracy simply by labeling every class in the negative. This is essentially useless, given that the whole reason of undertaking the machine learning task is to be able to predict the positive class. For this reason, I will focus on four other metrics:  
+These 16 models then made predictions on the holdout cases. For each model, the confusion matrix was recorded and a number of performance metrics were used to compare the models.  
 
-- **Recall.** The proportion of positive (i.e., minority) cases that were predicted correctly. This is the number of true positives (TP) over the sum of TP and false negatives (FN). This is a measure of what proportion of the cases we were interested in predicting correctly were actually recovered by our model.  
+The overall accuracy of a learner is not a useful metric for assessing performance in the presence of class imbalance. For example, if the positive class is only 2% of the data set, then we could achieve 98% accuracy simply by labeling every class in the negative. This is essentially useless, given that the whole reason of undertaking the machine learning task in this case is to be able to predict the positive class. For this reason, I will focus on four other metrics:  
 
-- **Precision.** The proportion of *correct* positive predictions. This is TP over the sum of TP and false positives (FP). This is a measure of what proportion of the cases we predicted as a positive class were *actually* of the positive class. This is also known as "positive predictive value," because it measures how "valuable" a positive prediction is.  
+- **Recall.** The proportion of positive cases that were predicted correctly. This is the number of true positives (TP) over the sum of TP and false negatives (FN), $TP \over TP + FN$. This quantifies what proportion of the cases we were interested in predicting correctly were actually recovered by our model.  
 
-- **F1 score.** This is the harmonic mean of recall and precision. It is a weighted mean where both recall and precision contribute to the score equally. It is one way to assess model performance when classes are imbalanced (CITE, XXXX), as it balances the benefit of predicting a minority class correctly with the cost of predicting a majority class incorrectly. Scores range from 0 (worst) to 1 (perfect).  
+- **Precision.** The proportion of *correct* positive predictions. This is TP over the sum of TP and false positives (FP), $TP \over TP + FP$. This quantifies what proportion of the cases we predicted as a positive class were *actually* of the positive class. This is also known as "positive predictive value," because it measures how "valuable" a positive prediction is.  
 
-```{r echo = FALSE, out.width = "65%", fig.align = "center"}
+- **F1 score.** This is the harmonic mean of recall and precision, $F_1 = 2 \times {\text{precision} \times \text{recall} \over \text{precision} + \text{recall}}$. It is a weighted mean where both recall and precision contribute to the score equally. It is one way to assess model performance when classes are imbalanced (Wallace, Small, Brodley, & Trikalinos, 2011), as it balances the benefit of predicting a minority class correctly with the cost of predicting a majority class incorrectly. Scores range from 0 (worst) to 1 (perfect).  
+
+- **AUC(ROC).** This is short for the "area under the receiver operating characteristic curve." In the present analyses, each model will have a curve determined by one point in two-dimensional space. The model's false-positive rate, $FP \over FP + TN$, is plotted on the x-axis, while the recall is plotted on the y-axis. One point is plotted for each model. A straight line then connects the point to the bottom-left and top-right corners of the figure. The area underneath this curve is the AUC. It is calculated as $1 + R - FPR \over 2$, were $R$ is the recll and $FPR$ is the false-positive rate. I used this as my primary measure of model performance, following Galar et al.'s (2012) review. See Figure 1 for an example.  
+
+```{r echo = FALSE, out.width = "65%", fig.align = "center", fig.cap = "An example of an ROC plot showing AUC. Random guessing is denoted by the dotted line, where AUC is 0.5."}
 roc <- data.frame(x = c(0, 1, 0, .4, 1),
                   y = c(0, 1, 0, .6, 1),
                   z = c(1, 1, 0, 0, 0))
@@ -122,19 +120,21 @@ ggplot(roc, aes(x = x, y = y, linetype = factor(z))) +
   annotate("text", x = .35, y = .70, label = "AUC = .60 \n (.40, .60)")
 ```
 
-- **AUC(ROC).** This is short for the "area under the receiver operating characteristic curve." In the present analyses, each model will have a curve determined by one point in two-dimensional space. The model's false positive rate (FP / (FP + TN)) is plotted on the x-axis, while the recall is plotted on the y-axis. One point is plotted for each model. A straight line then connects the point to the bottom-left and top-right corners of the figure. The area underneath this curve is the AUC. It is calculated as (1 + recall - false positive rate) / 2. See Figure 1 for an example. Random guessing is denoted by the dotted line, where AUC is 0.5.  
-
 # Results
 
-## Comparing Models
+
+
 ```{r echo = FALSE}
 prop_zeros <- dat %>% 
   mutate(total_pos = tp + fp) %>% 
   group_by(model) %>% 
   summarise_at("total_pos", funs(mean(. == 0))) %>% 
   arrange(desc(total_pos))
-kable(prop_zeros, col.names = c("Model", "Proportion P = 0"))
+kable(prop_zeros, col.names = c("Model", "Proportion P = 0"), 
+      caption = "Proportion of simulations where each model made zero positive class predictions.")
 ```
+  
+
 
 ```{r echo = FALSE}
 prop_f1_nan <- dat %>% 
@@ -142,8 +142,11 @@ prop_f1_nan <- dat %>%
   group_by(model) %>% 
   summarise_at("f1_nan", funs(mean(. == TRUE))) %>% 
   arrange(desc(f1_nan))
-kable(prop_f1_nan, col.names = c("Model", "Proportion F1 is N/A"))
+kable(prop_f1_nan, col.names = c("Model", "Proportion F1 is N/A"), 
+      caption = "Proportion of simulations where each model made so few positive class predictions that an F1 score could not be calculated.")
 ```
+
+## Comparing Mean Model Performance
 
 ```{r echo = FALSE}
 good_models <- prop_f1_nan %>% 
@@ -277,5 +280,3 @@ ggplot(auc_cor_dat,
   theme_minimal() +
   scale_colour_manual(values = cbPalette)
 ```
-
-
