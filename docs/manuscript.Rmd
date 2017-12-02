@@ -8,7 +8,9 @@ output: pdf_document
 library(tidyverse)
 library(ggridges)
 library(knitr)
+options(knitr.kable.NA = "")
 library(rstan)
+library(rstanarm)
 dat <- read_csv("../data/results_df.csv") %>% 
   bind_rows(read_csv("../data/results_df_101-150.csv")) %>% 
   bind_rows(read_csv("../data/results_df_151-200.csv")) %>% 
@@ -48,7 +50,7 @@ The present paper takes a Monte Carlo approach, systematically varying certain a
 
 ## Data Generating Process
 
-I generated data with a dichotomous outcome. These data were simulated by adapting the `twoClassSim` function from the `caret` R package (Kuhn, 2008). I generated 500 data sets using the following steps:  
+I generated data with a dichotomous outcome. The average class imbalance was 97% in the negative and 3% in the positive clases. These data were simulated by adapting the `twoClassSim` function from the `caret` R package (Kuhn, 2008). I generated 500 data sets using the following steps:  
 
 1. The number of cases in each data set were randomly drawn from a distribution, $N(40000, 5000)$.  
 
@@ -122,7 +124,7 @@ ggplot(roc, aes(x = x, y = y, linetype = factor(z))) +
 
 # Results
 
-
+The metrics I want to use to compare various approaches require that *some* positive predictions are made. However, some models might simply label all (or nearly all) cases in the negative to achieve, on average, 97% accuracy. Table 1 shows what proportion of the time (out of the 500 simulations) that the combination of sampling technique and algorithm made no positive class predictions.  
 
 ```{r echo = FALSE}
 prop_zeros <- dat %>% 
@@ -134,7 +136,9 @@ kable(prop_zeros, col.names = c("Model", "Proportion P = 0"),
       caption = "Proportion of simulations where each model made zero positive class predictions.")
 ```
   
+First, this illustrates the relative importance of sampling techniques over the algorithm used. Doing no sampling technique yielded $> .96$ models making no preeictions for all algorithms—save for AdaBoost, which was able to reduce this to $.23$.  
 
+However, making at least *one* positive prediction is an incredibly low bar. Remember that the denominator of the $F_1$ score is precision $+$ recall. If the model does not make enough positive predictions to make this sum equal $> 0$, the $F_1$ score cannot be calculated. Table 2 shows what proportion of the time the combination of sampling technique and algorithm yielded so few positive predictions that an $F_1$ score was undefined.  
 
 ```{r echo = FALSE}
 prop_f1_nan <- dat %>% 
@@ -145,8 +149,14 @@ prop_f1_nan <- dat %>%
 kable(prop_f1_nan, col.names = c("Model", "Proportion F1 is N/A"), 
       caption = "Proportion of simulations where each model made so few positive class predictions that an F1 score could not be calculated.")
 ```
+  
+Again, the sampling techniques discriminated on this proportion more than did the algorithms employed. All of the oversampling and no preprocessing models had at least one instance where the $F_1$ score was undefined, Although C5.0 and XGBoost, both using oversampling, were much closer to 0 than to 1, for the following analyses, I focus on the models using SMOTE and undersampling.  
 
 ## Comparing Mean Model Performance
+
+Tabe 3 lists the means for each metric on the models employing SMOTE and undersampling as data preprocessing techniques. These models are sorted in decreasing fashion from best AUC to worst AUC. What discriminates these models the most is the effect of using undersampling versus SMOTE on recall: The highest recall using undersampling was $.676$, while the best using SMOTE was $.335$.  
+
+It is not only important to get good performance on average, however; the variance should also be examined. Figure 2 displays density plots from the 500 simulations for each of the 8 models using SMOTE and undersampling and each of the 4 metrics.  
 
 ```{r echo = FALSE}
 good_models <- prop_f1_nan %>% 
@@ -160,10 +170,13 @@ mean_results <- dat %>%
   summarise_if(is.numeric, mean) %>% 
   arrange(desc(auc_roc))
 kable(mean_results, digits = 3, col.names = 
-        c("Model", "Precision", "Recall", "F1", "AUC(ROC)"))
+        c("Model", "Precision", "Recall", "F1", "AUC(ROC)"),
+      caption = "Mean performance on each metric for models using SMOTE and undersampling.")
 ```
+  
+While using a single C5.0 decision tree employed after undersampling appeared to separate itself above the models using SMOTE in terms of recall, it is clear that this model displays far more variance than the rest of the models using undersampling (as shown by the wider-tailed density than the ensemble methods).  
 
-```{r echo = FALSE, warning = FALSE, message = FALSE}
+```{r echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Density plots for all 4 performance metrics for each of the 8 models using SMOTE and undersampling.", out.width = "75%", fig.align = "center"}
 good_dat <- dat[dat$model %in% good_models, ]
 ranked_names <- names(sort(tapply(
   good_dat$auc_roc, droplevels(good_dat$model), mean, na.rm = TRUE),
@@ -188,6 +201,8 @@ ggplot(dat_long_ridge, aes(y = model, x = value, fill = model)) +
   theme(text = element_text(size = 14), legend.position = "none") +
   scale_fill_manual(values = cbPalette)
 ```
+  
+Table 3 and Figure 2 show that, on the primary metric of interest (AUC), the ensemble methods (i.e., random forest, XGBoost, AdaBoost) that employed undersampling performed the best. I compared the means on all four metrics between these three models. To do this, I ran four separate Bayesian models, using Stan. First, I estimated the mean for each of the 8 models of interest. Then, I calculated pairwise differences between each of the 3 undersampled ensemble models. The priors for each of the 8 means were normally-distributed, with a mean that was equal to the grand mean of all 8 models on the relevant metric. The standard deviations for the priors of group means were $.10$ for recall and AUC, while they were $.005$ for precision and $F_1$ scores. The prior for the error was an uninformative half-cauchy prior with a mean of 0 and standard deviation of 1. Results for these comparisons are shown in Table 4.  
 
 ```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
 stan_code <- "
@@ -238,13 +253,13 @@ sdat_rec <- list(n = nrow(dat_long), k = length(unique(dat_long$model)),
                     gm = mean(dat_long$rec), psigmu = .10, x = dat_long$model,
                     y = dat_long$rec)
 mdiff_aucroc <- stan(model_code = stan_code, data = sdat_aucroc,
-                     control = list(max_treedepth = 15))
+                     control = list(max_treedepth = 15), cores = 4)
 mdiff_f1 <- stan(model_code = stan_code, data = sdat_f1,
-                 control = list(max_treedepth = 15))
+                 control = list(max_treedepth = 15), cores = 4)
 mdiff_prec <- stan(model_code = stan_code, data = sdat_prec,
-                   control = list(max_treedepth = 15))
+                   control = list(max_treedepth = 15), cores = 4)
 mdiff_rec <- stan(model_code = stan_code, data = sdat_rec,
-                  control = list(max_treedepth = 15))
+                  control = list(max_treedepth = 15), cores = 4)
 mean_diffs <- round(summary(mdiff_aucroc)$summary[10:12, c(1, 4, 8)], 3) %>% 
   rbind(round(summary(mdiff_f1)$summary[10:12, c(1, 4, 8)], 3)) %>% 
   rbind(round(summary(mdiff_rec)$summary[10:12, c(1, 4, 8)], 3)) %>% 
@@ -261,11 +276,16 @@ mean_diffs <- mean_diffs[, c(5, 1, 2:4)]
 colnames(mean_diffs)[3] <- "Difference"
 ```
 ``` {r echo = FALSE}
-kable(mean_diffs)
+kable(mean_diffs, caption = "Pairwise mean differences and 95% credible intervals between all three ensemble models using undersampling.")
 ```
   
+It is important to remember that these models are only those using undersampling. Random forest outperformed the other two ensembles on every metric, except for recall. A random forest was able to cover 1.9% and 3.0% more AUC than XGBoost and AdaBoost, respectively. Considering recall, AdaBoost recovered 6.9% and 9.1% more of the positive cases than the random forest and XGBoost models, respectively.  
+
 ## Data Characteristics and Performance
-```{r echo = FALSE}
+
+Lastly, I looked at the relationship between characteristics of the data (i.e., minority size, sample size, noise variable, and predictors) and the performance of the model in terms of AUC. The bivariate relationships between the data characteristics and the AUC, split by model, are presented in Figure 3. The primary interest here was to see if there were any interactions between data characteristics and model; however, we can see that no meaningful interactions are present: Even though data characteristics were predictors of performance, the main effect of model held across the range of minority size, sample size, and number of noise and predictor variables.  
+  
+```{r echo = FALSE, fig.cap = "Relationships between data characteristics and AUC, by model.", out.width = "75%", fig.align = "center"}
 auc_cor_dat <- dat[dat$model %in% good_models, ] %>% 
   transmute(Model = model, `AUC(ROC)` = auc_roc, N = n,  
             `Minority Size` = minority_size, Predictors = predict_vars,
@@ -280,3 +300,25 @@ ggplot(auc_cor_dat,
   theme_minimal() +
   scale_colour_manual(values = cbPalette)
 ```
+  
+Curiously, it appears that *more* input variables led to *worse* performance. Since the data generation procedure defined noise variables as a proportion of predictor variables, the two are positively-related. A better model, then, is to collapse across models and predict AUC from all four characteristics of the data in one model. I did this in another Bayesian model in Stan. Uninformative priors, $N(0, 10)$, were set for all regression coefficients. A half-cauchy prior with a mean of 0 and standard deviation of 10 was set for the error term. As can be seen in Table 5, less class imbalance led to greater AUC.  
+
+```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
+mod_characs <- stan_glm(auc_roc ~ n + noise_vars + minority_size + predict_vars,
+                        data = good_dat, prior_intercept = normal(0, 10),
+                        prior = normal(0, 10), prior_aux = cauchy(0, 10))
+```
+``` {r echo = FALSE}
+mod_characs <- as.data.frame(summary(mod_characs))[1:5, c(1, 4, 8)]
+colnames(mod_characs)[1] <- "Coefficient"
+rownames(mod_characs)[2:5] <- c("N", "Noise Variables", "Minority Size",
+                                "Predictor Variables")
+kable(mod_characs, digits = 3, caption = "Regression coefficients and 95% credible intervals predicting AUC(ROC).")
+```
+
+# Discussion
+
+
+
+# References
+
