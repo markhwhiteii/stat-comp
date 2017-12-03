@@ -1,6 +1,8 @@
 ---
 title: "A Monte Carlo study on methods for handling class imbalance"
 author: "Mark H. White II | markhwhiteii@gmail.com"
+fontsize: 12pt
+geometry: margin=1in
 output: pdf_document
 ---
 
@@ -40,17 +42,17 @@ levels(dat$model) <- c(
 dat <- dat[, !names(dat) %in% c("cor_vars", "linear_vars")]
 ```
 
-Many applications of classification problems in machine learning involve class imbalance—a situation where the class of interest (the "minority" or "positive" class) makes up a very small percentage of the total data (i.e., 5% or less of cases are in this class). Algorithms that try to maximize the overall accuracy of prediction bias in favor of the majority (or "negative") class. For example, if 1% of cases are classified as "positive," then an algorithm can ensure 99% accuracy by simply predicting *all* cases as "negative." This obviously misses the whole point of training a model in the first place, as often we are training the model explicitly because we want to be able to predict this class or event with a low base rate. Class imbalance problems arise in important applications: Will a contact lead to a donation to our campaign? Does this person have cancer? Is this credit card transation fraudulent?  
+Many applications of classification problems in machine learning involve class imbalance—a situation where the class of interest (the "minority" or "positive" class) makes up a very small percentage of the total data (i.e., 5% or less of cases are in this class). Algorithms that try to maximize the overall accuracy of prediction bias in favor of the majority (or "negative") class. For example, if 1% of cases are in the positive class, then an algorithm can ensure 99% accuracy by simply predicting *all* cases as "negative." This obviously misses the whole point of training a model in the first place, as often we are training the model explicitly because we want to be able to predict this class or event with a low base rate. Class imbalance problems arise in important applications: Will a contact lead to a donation to our campaign? Does this person have cancer? Is this credit card transaction fraudulent?  
 
-There are a number of ways to address class imbalance in two-class classification problems (Branco, Torgo, & Ribeiro, 2015; Longadge, Dongre, & Malik, 2013). When researchers propose new methods or review a number of them, they generally use real-world, pre-existing data sets to see how their methods perform (Galar, Fernández, Barrenechea, Bustince, & Herrera, 2012; Weiss, McCarthy, & Zabar, 2007). While this adds the benefit of ecological validity, it does not allow us to see systematic relationships between characteristics of the data and performance. Monte Carlo simulation methods (Johnson, 2013) can be used to generate sets of data that are identical in every way, save for characteristics we are interested in studying. Because these simulation methods control aspects of the data while holding everything else constant, simulation studies can yield conclusions like, "Algorithm X outperforms Algorithm Y, but only in small samples." We would know that this is due to the sample size (and not some other aspect of the data), because we can control the sample size in setting the parameters to our simulations.  
+There are a number of ways to address class imbalance in two-class classification problems (Branco, Torgo, & Ribeiro, 2015; Longadge, Dongre, & Malik, 2013). When researchers propose new methods or review a number of them, they generally use real-world, preexisting data sets to see how their methods perform (Galar, Fernández, Barrenechea, Bustince, & Herrera, 2012; Weiss, McCarthy, & Zabar, 2007). While this adds the benefit of ecological validity, it does not allow us to see systematic relationships between characteristics of the data and performance. Monte Carlo simulation methods (Johnson, 2013) can be used to generate sets of data that are identical in every way, save for characteristics we are interested in studying. Because these simulation methods control aspects of the data while holding everything else constant, simulation studies can yield conclusions like, "Algorithm X outperforms Algorithm Y, but only in small samples." We would know that this is due to the sample size (and not some other aspect of the data), because we can control characteristics of the data when setting the parameters to our simulations.  
 
-The present paper takes a Monte Carlo approach, systematically varying certain aspects about the data across 500 simulations (while holding other aspects constant).  I will analyze all combinations of four algorithmic approaches and four sampling approaches to addressing class imbalance. I will create one data generating process that only allows the following aspects to vary: sample size, amount of class imbalance, number of predictors, and proportion of predictors that are noise (i.e., do not predict the outcome).  
+The present paper takes a Monte Carlo approach, systematically varying certain aspects about the data across 500 simulations (while holding other aspects constant).  I will employ all combinations of four algorithmic approaches and four sampling approaches to addressing class imbalance. I will create one data generating process that only allows the following aspects to vary: sample size, amount of class imbalance, number of predictors, and proportion of predictors that are noise (i.e., do not predict the outcome).  
 
 # Method
 
 ## Data Generating Process
 
-I generated data with a dichotomous outcome. The average class imbalance was 97% in the negative and 3% in the positive clases. These data were simulated by adapting the `twoClassSim` function from the `caret` R package (Kuhn, 2008). I generated 500 data sets using the following steps:  
+I generated data with a dichotomous outcome. The average class imbalance was 97% in the negative and 3% in the positive class. These data were simulated by adapting the `twoClassSim` function from the `caret` R package (Kuhn, 2008). I generated 500 data sets using the following steps:  
 
 1. The number of cases in each data set were randomly drawn from a distribution, $N(40000, 5000)$.  
 
@@ -90,7 +92,7 @@ Predictions were made using four different algorithms:
 
 - **AdaBoost.** I employed Freund and Schapire's (1996) AdaBoost.M1 approach using the `adaboost` function from the `fastAdaboost` R package (Chatterjee, 2016). This algorithm also involves training $t$ number of decision trees (note that this method can be used with any learning algorithm, but the function used here employs decision trees). Instead of generating a number of trees independently of one another based on a subset of cases and predictors (like the random forest), AdaBoost works in serial. Once the the first tree ($t = 1$) is fit, cases in the second tree ($t = 2$) are weighted based on the error of the first tree. The third tree $t = 3$, in turn, is trained on cases weighted by the error of the second tree. That is, the weights for each decision tree $t$ are determined by the error of $t - 1$. In the case of the first tree, every case has the same weight, $1 \over n$, where $n$ is the sample size of the data set. Weights are calculated such that cases that $t - 1$ predicts *incorrectly* are weighted *more* in $t$. In this way, AdaBoost focuses in on the "mistakes" of the previous trees. AdaBoost labels one class -1 and the other +1, and the final prediction is based on taking the sign of the weighted sum of predictions and their weights: $\text{sign}(\alpha_1h_1(x) + ... + \alpha_th_t(x))$ where $t$ is the total number of trees, $\alpha$ are weights, and $h_t(x)$ are predictions from a tree. For the current study, I set $t = 10$. Given `y` as the class label and `data` as the name of the data frame, the code for AdaBoost was: `adaboost(y ~ ., data, nIter = 10)`.  
 
-- **Gradient boosting.** I employed the other most popular form of boosting, gradient boosting, as well. I used the "extreme gradient boosting," or "XGBoost" variant (Chen & Guestrin, 2016) of gradient boosting, using the `xgboost` function from the R package of the same name (Chen, He, Benesty, Khotilovich, & Yang, 2017). While AdaBoost learns from the "mistakes" of previous trees (again, other classifiers can be used here, but decision trees are employed in the current study) by calculating weights for the cases, gradient boosting learns from the "mistakes" by training trees $t$ that are trained on the residuals of $t - 1$. Residuals are treated as negative gradients, and the model is updated with new trees $t$ using gradient descent. XGBoost is one of the most popular implementations, providing a number of optimizations of gradient boosting in both terms of efficiency and accuracy. Like with AdaBoost, I set the number of trees to fit at $t = 10$; the rest of the hyperparameters were left to the package defaults. The code for XGBoost was: `xgboost(X, y, nrounds = 10, objective = "binary:logistic")`.  
+- **Gradient boosting.** I employed the other most popular form of boosting, gradient boosting, as well. I used the "extreme gradient boosting," or "XGBoost" variant (Chen & Guestrin, 2016) of gradient boosting, using the `xgboost` function from the R package of the same name (Chen, He, Benesty, Khotilovich, & Yang, 2017). While AdaBoost learns from the "mistakes" of previous trees (again, other classifiers can be used here, but decision trees are employed in the current study) by calculating weights for the cases, gradient boosting learns from the "mistakes" by training trees $t$ that are trained on the residuals of $t - 1$. Residuals are treated as negative gradients, and the model is updated with new trees $t$ using gradient descent. XGBoost is one of the most popular implementations, optimizing gradient boosting in both terms of efficiency and accuracy. Like with AdaBoost, I set the number of trees to fit at $t = 10$; the rest of the hyperparameters were left to the package defaults. The code for XGBoost was: `xgboost(X, y, nrounds = 10, objective = "binary:logistic")`.  
 
 - **Decision tree.** I also employed one decision tree as a "control" non-ensemble learner. I used Ross Quinlan's C5.0 algorithm (see Kuhn & Johnson, 2013 for a description) using the `C5.0` function from the `C50` R package (Kuhn, Weston, Coulter, & Culp, 2015). The code for this decision tree was: `C5.0(X, y)`.  
 
@@ -106,8 +108,6 @@ The overall accuracy of a learner is not a useful metric for assessing performan
 
 - **F1 score.** This is the harmonic mean of recall and precision, $F_1 = 2 \times {\text{precision} \times \text{recall} \over \text{precision} + \text{recall}}$. It is a weighted mean where both recall and precision contribute to the score equally. It is one way to assess model performance when classes are imbalanced (Wallace, Small, Brodley, & Trikalinos, 2011), as it balances the benefit of predicting a minority class correctly with the cost of predicting a majority class incorrectly. Scores range from 0 (worst) to 1 (perfect).  
 
-- **AUC(ROC).** This is short for the "area under the receiver operating characteristic curve." In the present analyses, each model will have a curve determined by one point in two-dimensional space. The model's false-positive rate, $FP \over FP + TN$, is plotted on the x-axis, while the recall is plotted on the y-axis. One point is plotted for each model. A straight line then connects the point to the bottom-left and top-right corners of the figure. The area underneath this curve is the AUC. It is calculated as $1 + R - FPR \over 2$, were $R$ is the recll and $FPR$ is the false-positive rate. I used this as my primary measure of model performance, following Galar et al.'s (2012) review. See Figure 1 for an example.  
-
 ```{r echo = FALSE, out.width = "65%", fig.align = "center", fig.cap = "An example of an ROC plot showing AUC. Random guessing is denoted by the dotted line, where AUC is 0.5."}
 roc <- data.frame(x = c(0, 1, 0, .4, 1),
                   y = c(0, 1, 0, .6, 1),
@@ -121,6 +121,8 @@ ggplot(roc, aes(x = x, y = y, linetype = factor(z))) +
   labs(x = "False Positive Rate", y = "Recall") +
   annotate("text", x = .35, y = .70, label = "AUC = .60 \n (.40, .60)")
 ```
+  
+- **AUC(ROC).** This is short for the "area under the receiver operating characteristic curve." In the present analyses, each model will have a curve determined by one point in two-dimensional space. The model's false-positive rate, $FP \over FP + TN$, is plotted on the x-axis, while the recall is plotted on the y-axis. One point is plotted for each model. A straight line then connects the point to the bottom-left and top-right corners of the figure. The area underneath this curve is the AUC. It is calculated as $1 + R - FPR \over 2$, were $R$ is the recall and $FPR$ is the false-positive rate. I used this as my primary measure of model performance, following Galar et al.'s (2012) review. See Figure 1 for an example.  
 
 # Results
 
@@ -136,9 +138,7 @@ kable(prop_zeros, col.names = c("Model", "Proportion P = 0"),
       caption = "Proportion of simulations where each model made zero positive class predictions.")
 ```
   
-First, this illustrates the relative importance of sampling techniques over the algorithm used. Doing no sampling technique yielded $> .96$ models making no preeictions for all algorithms—save for AdaBoost, which was able to reduce this to $.23$.  
-
-However, making at least *one* positive prediction is an incredibly low bar. Remember that the denominator of the $F_1$ score is precision $+$ recall. If the model does not make enough positive predictions to make this sum equal $> 0$, the $F_1$ score cannot be calculated. Table 2 shows what proportion of the time the combination of sampling technique and algorithm yielded so few positive predictions that an $F_1$ score was undefined.  
+First, this illustrates the relative importance of sampling techniques over the algorithm used. Oversampling and doing no data preprocessing often led models to simply predict every case in the negative class. However, making at least *one* positive prediction is an incredibly low bar. Remember that the denominator of the $F_1$ score is precision $+$ recall. If the model does not make enough positive predictions to make this sum $> 0$, the $F_1$ score cannot be calculated. Table 2 shows what proportion of the time the combination of sampling technique and algorithm yielded so few positive predictions that an $F_1$ score was undefined.  
 
 ```{r echo = FALSE}
 prop_f1_nan <- dat %>% 
@@ -150,13 +150,11 @@ kable(prop_f1_nan, col.names = c("Model", "Proportion F1 is N/A"),
       caption = "Proportion of simulations where each model made so few positive class predictions that an F1 score could not be calculated.")
 ```
   
-Again, the sampling techniques discriminated on this proportion more than did the algorithms employed. All of the oversampling and no preprocessing models had at least one instance where the $F_1$ score was undefined, Although C5.0 and XGBoost, both using oversampling, were much closer to 0 than to 1, for the following analyses, I focus on the models using SMOTE and undersampling.  
+Again, the sampling techniques discriminated on this proportion more than did the algorithms employed. All of the oversampling and no preprocessing models had at least one instance where the $F_1$ score was undefined, Although C5.0 and XGBoost, both using oversampling, were much closer to 0 than to 1, for the rest of the analyses, I focus on the models using SMOTE and undersampling alone.  
 
 ## Comparing Mean Model Performance
 
 Tabe 3 lists the means for each metric on the models employing SMOTE and undersampling as data preprocessing techniques. These models are sorted in decreasing fashion from best AUC to worst AUC. What discriminates these models the most is the effect of using undersampling versus SMOTE on recall: The highest recall using undersampling was $.676$, while the best using SMOTE was $.335$.  
-
-It is not only important to get good performance on average, however; the variance should also be examined. Figure 2 displays density plots from the 500 simulations for each of the 8 models using SMOTE and undersampling and each of the 4 metrics.  
 
 ```{r echo = FALSE}
 good_models <- prop_f1_nan %>% 
@@ -174,7 +172,7 @@ kable(mean_results, digits = 3, col.names =
       caption = "Mean performance on each metric for models using SMOTE and undersampling.")
 ```
   
-While using a single C5.0 decision tree employed after undersampling appeared to separate itself above the models using SMOTE in terms of recall, it is clear that this model displays far more variance than the rest of the models using undersampling (as shown by the wider-tailed density than the ensemble methods).  
+It is not only important to get good performance on average, however; the variance should also be examined. Figure 2 displays density plots from the 500 simulations for each of the 8 models using SMOTE and undersampling and each of the 4 metrics. While using a single C5.0 decision tree employed after undersampling appeared to separate itself above the models using SMOTE in terms of recall, it is clear that this model displays far more variance than the rest of the models using undersampling (as shown by the wider-tailed density than the ensemble methods).  
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Density plots for all 4 performance metrics for each of the 8 models using SMOTE and undersampling.", out.width = "75%", fig.align = "center"}
 good_dat <- dat[dat$model %in% good_models, ]
@@ -202,7 +200,7 @@ ggplot(dat_long_ridge, aes(y = model, x = value, fill = model)) +
   scale_fill_manual(values = cbPalette)
 ```
   
-Table 3 and Figure 2 show that, on the primary metric of interest (AUC), the ensemble methods (i.e., random forest, XGBoost, AdaBoost) that employed undersampling performed the best. I compared the means on all four metrics between these three models. To do this, I ran four separate Bayesian models, using Stan. First, I estimated the mean for each of the 8 models of interest. Then, I calculated pairwise differences between each of the 3 undersampled ensemble models. The priors for each of the 8 means were normally-distributed, with a mean that was equal to the grand mean of all 8 models on the relevant metric. The standard deviations for the priors of group means were $.10$ for recall and AUC, while they were $.005$ for precision and $F_1$ scores. The prior for the error was an uninformative half-cauchy prior with a mean of 0 and standard deviation of 1. Results for these comparisons are shown in Table 4.  
+Table 3 and Figure 2 show that, on the primary metric of interest (AUC), the ensemble methods (i.e., random forest, XGBoost, AdaBoost) that employed undersampling performed the best. I compared the means of all four metrics between these three models (i.e., Random Forest, Under; XGBoost, Under; AdaBoost, Under). To do this, I ran four separate Bayesian models, using Stan. First, I estimated the mean for each of the 8 models using SMOTE and undersampling. Then, I calculated pairwise differences between each of the 3 undersampled ensemble models. The priors for each of the 8 means were normally-distributed, with a mean that was equal to the grand mean of all 8 models on the relevant metric. The standard deviations for the priors of group means were $.10$ for recall and AUC, while they were $.005$ for precision and $F_1$ scores. The prior for the error was an uninformative half-cauchy prior with a mean of 0 and standard deviation of 1. Results for these comparisons are shown in Table 4.  
 
 ```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
 stan_code <- "
@@ -279,7 +277,7 @@ colnames(mean_diffs)[3] <- "Difference"
 kable(mean_diffs, caption = "Pairwise mean differences and 95% credible intervals between all three ensemble models using undersampling.")
 ```
   
-It is important to remember that these models are only those using undersampling. Random forest outperformed the other two ensembles on every metric, except for recall. A random forest was able to cover 1.9% and 3.0% more AUC than XGBoost and AdaBoost, respectively. Considering recall, AdaBoost recovered 6.9% and 9.1% more of the positive cases than the random forest and XGBoost models, respectively.  
+First, it is important to remember that these models are only those using undersampling. Random forest outperformed the other two ensembles on every metric, except for recall. A random forest was able to cover 1.9% and 3.0% more AUC than XGBoost and AdaBoost, respectively. Considering recall, AdaBoost recovered 6.9% and 9.1% more of the positive cases than the random forest and XGBoost models, respectively.  
 
 ## Data Characteristics and Performance
 
@@ -301,7 +299,7 @@ ggplot(auc_cor_dat,
   scale_colour_manual(values = cbPalette)
 ```
   
-Curiously, it appears that *more* input variables led to *worse* performance. Since the data generation procedure defined noise variables as a proportion of predictor variables, the two are positively-related. A better model, then, is to collapse across models and predict AUC from all four characteristics of the data in one model. I did this in another Bayesian model in Stan. Uninformative priors, $N(0, 10)$, were set for all regression coefficients. A half-cauchy prior with a mean of 0 and standard deviation of 10 was set for the error term. As can be seen in Table 5, less class imbalance led to greater AUC.  
+Curiously, it appears that *more* input variables led to *worse* performance. Since the data generation procedure defined noise variables as a proportion of predictor variables, the two are positively-related. A better model, then, is to collapse across models and predict AUC from all four characteristics of the data in one model. I did this using a Bayesian multiple regression model in Stan. Uninformative priors, $N(0, 10)$, were set for all regression coefficients. A half-cauchy prior with a mean of 0 and standard deviation of 10 was set for the error term. As can be seen in Table 5, less class imbalance led to greater AUC.  
 
 ```{r warning = FALSE, message = FALSE, results = FALSE, echo = FALSE}
 mod_characs <- stan_glm(auc_roc ~ n + noise_vars + minority_size + predict_vars,
@@ -318,7 +316,11 @@ kable(mod_characs, digits = 3, caption = "Regression coefficients and 95% credib
 
 # Discussion
 
+Preprocessing techniques affected model performance in situations of class imbalance more than what algorithm was employed. The best models used a combination of undersampling and an ensemble method. Overall, the best performing model was involved undersampling the data and then using a random forest. Additionally, controlling the properties of the data using Monte Carlo simulation methods allows us to investigate relationships between data characteristics and model performance, while holding all other properties of the data constant. Sample size, minority size, number of predictors, and number of noise variables were the only elements of the data that varied between each of the 500 simulations. No interactions between model and characteristics of the data were found; the model that performed the best on averaged tended to perform the best regardless of any given characteristic of the data. The only relationship found was that greater class imbalance led to worse performance (again, regardless of model used).  
 
+However, it must be noted that these relationships might not hold when properties of the data reach far beyond the parameters set here. More simulation studies should vary the ranges of these data characteristics further. Additionally, different data-generating procedures could be employed to generalize across different types of data structures (e.g., non-linear relationships between predictor variables, different relationships between predictors and the outcome).  
+
+The comparions used here were based on rather agnostic models. In practice, one likely knows the relative costs of false positives versus the benefits of true positives. This tradeoff could be worked directly into a model using a cost matrix or selecting a model using a variant of the $F$ score (which can incorporate the relative importance of precision and recall) to measure performance. Additionally, I undertook no hyperparameter tuning based on cross-validation in the current study. This was primarily done for the sake of computational effort. However, proponents of their favorite method here might argue that—if they could tune the model—then the results here might look different. They might be correct, but the primary focus here was to (a) compare a number of common approaches as they appear out-of-the-box and in accordance with rules-of-thumb and (b) demonstrate the usefulness of Monte Carlo methods in making conclusions like "Oversampling appears to the the best for small data sets" (p. 147; KrishnaVeni & Rani, 2011), instead of relying on comparing preexisting data sets that might differ in any other number of unknown ways.  
 
 # References
 
