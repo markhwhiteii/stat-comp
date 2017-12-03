@@ -1,8 +1,6 @@
 ---
 title: "A Monte Carlo study on methods for handling class imbalance"
 author: "Mark H. White II | markhwhiteii@gmail.com"
-fontsize: 12pt
-geometry: margin=1in
 output: pdf_document
 ---
 
