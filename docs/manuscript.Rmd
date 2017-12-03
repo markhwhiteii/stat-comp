@@ -44,7 +44,7 @@ dat <- dat[, !names(dat) %in% c("cor_vars", "linear_vars")]
 
 Many applications of classification problems in machine learning involve class imbalance—a situation where the class of interest (the "minority" or "positive" class) makes up a very small percentage of the total data (i.e., 5% or less of cases are in this class). Algorithms that try to maximize the overall accuracy of prediction bias in favor of the majority (or "negative") class. For example, if 1% of cases are in the positive class, then an algorithm can ensure 99% accuracy by simply predicting *all* cases as "negative." This obviously misses the whole point of training a model in the first place, as often we are training the model explicitly because we want to be able to predict this class or event with a low base rate. Class imbalance problems arise in important applications: Will a contact lead to a donation to our campaign? Does this person have cancer? Is this credit card transaction fraudulent?  
 
-There are a number of ways to address class imbalance in two-class classification problems (Branco, Torgo, & Ribeiro, 2015; Longadge, Dongre, & Malik, 2013). When researchers propose new methods or review a number of them, they generally use real-world, preexisting data sets to see how their methods perform (Galar, Fernández, Barrenechea, Bustince, & Herrera, 2012; Weiss, McCarthy, & Zabar, 2007). While this adds the benefit of ecological validity, it does not allow us to see systematic relationships between characteristics of the data and performance. Monte Carlo simulation methods (Johnson, 2013) can be used to generate sets of data that are identical in every way, save for characteristics we are interested in studying. Because these simulation methods control aspects of the data while holding everything else constant, simulation studies can yield conclusions like, "Algorithm X outperforms Algorithm Y, but only in small samples." We would know that this is due to the sample size (and not some other aspect of the data), because we can control characteristics of the data when setting the parameters to our simulations.  
+There are a number of ways to address class imbalance in two-class classification problems (Branco, Torgo, & Ribeiro, 2015; Longadge, Dongre, & Malik, 2013). When researchers propose new methods or review a number of them, they generally use real-world, preexisting data sets to see how their methods perform (Galar, Fernández, Barrenechea, Bustince, & Herrera, 2012; Weiss, McCarthy, & Zabar, 2007). While this adds the benefit of ecological validity, it does not allow us to see systematic relationships between characteristics of the data and performance. Monte Carlo simulation methods can be used to generate sets of data that are identical in every way, save for characteristics we are interested in studying. Because these simulation methods control aspects of the data while holding everything else constant, simulation studies can yield conclusions like, "Algorithm X outperforms Algorithm Y, but only in small samples." We would know that this is due to the sample size (and not some other aspect of the data), because we can control characteristics of the data when setting the parameters to our simulations.  
 
 The present paper takes a Monte Carlo approach, systematically varying certain aspects about the data across 500 simulations (while holding other aspects constant).  I will employ all combinations of four algorithmic approaches and four sampling approaches to addressing class imbalance. I will create one data generating process that only allows the following aspects to vary: sample size, amount of class imbalance, number of predictors, and proportion of predictors that are noise (i.e., do not predict the outcome).  
 
@@ -324,3 +324,36 @@ The comparions used here were based on rather agnostic models. In practice, one 
 
 # References
 
+Branco, P., Torgo, L., & Ribeiro, R. (2015). A survey of predictive modelling under imbalanced distributions. Retrieved from https://arxiv.org/abs/1505.01658.  
+
+Breiman, L. (2001). Random forests. *Machine Learning, 45*, 5-32.  
+
+Chatterjee, S. (2016). *fastAdaboost: A Fast Implementation of Adaboost*. R package version 1.0.0. https://CRAN.R-project.org/package=fastAdaboost.  
+
+Chawla, N., Bowyer, K., Hall, L., & Kegelmeyer, W. (2002). SMOTE: Synthetic minority over-sampling technique. *Journal of Artificial Intelligence Research, 16*, 321-357.  
+
+Chen, T. & Guestrin, C. (2016). XGBoost: A scalable tree boosting system. Retrieved from https://arxiv.org/abs/1603.02754.  
+
+Chen, T., He, T., Benesty, M., Khotilovich, V., & Tang, Y. (2017). *xgboost: Extreme Gradient Boosting.* R package version 0.6-4. https://CRAN.R-project.org/package=xgboost.  
+
+Freund, Y. & Schapire, R. E. (1996). Experiments with a new boosting algorithm. *Machine Learning: Proceedings of the Thirteenth International Conference.*  
+
+Galar, M., Fernández, A., Barrenechea, E., Bustince, H., & Herrera, F. (2012). A review on ensembles for the class imbalance problem: Bagging-, boosting-, and hybrid-based approaches. *IEE Transactions on Systems, Man, and Cybernatics—Part C: Applications and Reviews, 42*(4), 463-484.  
+
+KrishnaVeni, C. V. & Rani, T. S. (2011). On the classification of imbalanced datasets. *International Journal of Computing Science & Technology, 2*(1). 145-148.  
+
+Kuhn, M. (2008). *caret: Classification and Regression Training.* R package version 6.0-77. https://CRAN.R-project.org/package=caret.  
+
+Kuhn, M. & Johnson, K. (2013). *Applied Predictive Modeling*. New York, NY: Springer.  
+
+Kuhn, M., Weston, S., Coulter, N., & Culp, M. (2015). *C50: C5.0 Decision Trees and Rule-Based Models.* R package version 0.1.0-24. https://CRAN.R-project.org/package=C50.  
+
+Liaw, A. & Wiener, M. (2002). Classification and Regression by randomForest. *R News, 2*(3), 18-22.  
+
+Longadge, R., Dongre, S., & Malik, L. (2013). Class imbalance problem in data mining: Review. Retrieved from https://arxiv.org/abs/1305.1707.  
+
+Pozzolo, A. D., Caelen, O., & Bontempi, G. (2015). *unbalanced: Racing and Unbalanced Methods Selection.* R package version 2.0. https://CRAN.R-project.org/package=unbalanced.  
+
+Wallace, B. C., Small, K., Brodley, C. E., & Trikalinos, T. A. (2011). Class imbalance, redux. *11th IEEE International Conference on Data Mining*, 754-763.  
+
+Weiss, G. M., McCarthy, K., & Zabar, B. (2007). Cost-sensitive learning vs. sampling: Which is best for handling unbalanced classes with unequal error costs? *DMIN, 7*, 35-41.  
